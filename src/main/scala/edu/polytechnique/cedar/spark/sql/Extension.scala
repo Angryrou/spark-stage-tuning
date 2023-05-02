@@ -133,7 +133,7 @@ object F {
       Operator(
         operatorId,
         plan.nodeName,
-        plan.getClass.get,
+        plan.getClass.getName,
         newStats.sizeInBytes,
         newStats.rowCount.getOrElse(-1),
         newStats.isRuntime,
