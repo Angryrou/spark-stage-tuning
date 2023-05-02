@@ -6,6 +6,7 @@
 hs_err_pid*
 .idea
 .bsp
+.scalafmt.conf
 project
 target
 
@@ -13,4 +14,5 @@ sbt
 default.properties
 
 lib
-
+metastore_db
+spark-warehouse
