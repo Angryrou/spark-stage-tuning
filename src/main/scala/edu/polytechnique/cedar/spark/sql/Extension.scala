@@ -39,20 +39,15 @@ case class QueryStage(
 case class QueryStageLink(fromQSId: Int, toQSId: Int)
 
 case class RuntimePlan(
-    queryStages: mutable.Map[Int, QueryStage],
+    queryStages: mutable.TreeMap[Int, QueryStage],
     queryStagesLinks: mutable.ArrayBuffer[QueryStageLink]
 )
 
 // time metrics
 
 case class InitialPlanTimeMetric(
-    queryStartTimeMap: mutable.Map[Long, Long],
-    queryEndTimeMap: mutable.Map[Long, Long]
-)
-
-case class RuntimePlanTimeMetric(
-    queryStageStartTimeMap: mutable.Map[Long, mutable.Map[Int, Long]],
-    queryStageEndTimeMap: mutable.Map[Long, mutable.Map[Int, Long]]
+    queryStartTimeMap: mutable.TreeMap[Long, Long],
+    queryEndTimeMap: mutable.TreeMap[Long, Long]
 )
 
 object F {
@@ -71,7 +66,7 @@ object F {
 
   def traversePlan(
       plan: SparkPlan,
-      operators: mutable.Map[Int, Operator],
+      operators: mutable.TreeMap[Int, Operator],
       links: mutable.ArrayBuffer[OperatorLink],
       rootId: Int,
       mylog: Option[Logger] = None
@@ -132,7 +127,7 @@ object F {
 // inserted rules for extract traces
 case class ExportInitialPlan(
     spark: SparkSession,
-    initialPlans: mutable.Map[Long, InitialPlan]
+    initialPlans: mutable.TreeMap[Long, InitialPlan]
 ) extends Rule[SparkPlan] {
 
   val mylog: Logger = Logger.getLogger(getClass.getName)
@@ -143,7 +138,7 @@ case class ExportInitialPlan(
     assert(executionId >= 0L)
     if (!initialPlans.contains(executionId)) {
       mylog.debug("-- traverse plan --")
-      val operators = mutable.Map[Int, Operator]()
+      val operators = mutable.TreeMap[Int, Operator]()
       val links = mutable.ArrayBuffer[OperatorLink]()
       F.traversePlan(plan, operators, links, -1, Some(mylog))
       mylog.debug(s"${operators.toString()}, ${links.toString}")
@@ -161,7 +156,7 @@ case class ExportInitialPlan(
 
 case class ExportRuntimeQueryStage(
     spark: SparkSession,
-    runtimePlans: mutable.Map[Long, RuntimePlan]
+    runtimePlans: mutable.TreeMap[Long, RuntimePlan]
 ) extends Rule[SparkPlan] {
 
   val mylog: Logger = Logger.getLogger(getClass.getName)
@@ -173,7 +168,7 @@ case class ExportRuntimeQueryStage(
     mylog.debug(s"$executionId, ${queryStageId}, ${plan.id}, ${plan}")
 
     // get the current queryStage info
-    val operators = mutable.Map[Int, Operator]()
+    val operators = mutable.TreeMap[Int, Operator]()
     val links = mutable.ArrayBuffer[OperatorLink]()
     F.traversePlan(plan, operators, links, -1, Some(mylog))
 
@@ -196,8 +191,8 @@ case class ExportRuntimeQueryStage(
         runtimePlan.queryStagesLinks ++= newQueryStageLinks
       }
       case None => {
-        val queryStages: mutable.Map[Int, QueryStage] =
-          mutable.Map[Int, QueryStage](queryStageId -> queryStage)
+        val queryStages: mutable.TreeMap[Int, QueryStage] =
+          mutable.TreeMap[Int, QueryStage](queryStageId -> queryStage)
         val queryStageLinks: mutable.ArrayBuffer[QueryStageLink] =
           newQueryStageLinks
         val runtimePlan: RuntimePlan = RuntimePlan(queryStages, queryStageLinks)
@@ -210,24 +205,24 @@ case class ExportRuntimeQueryStage(
 }
 
 case class AggMetrics() {
-  val initialPlans: mutable.Map[Long, InitialPlan] =
-    mutable.Map[Long, InitialPlan]()
+  val initialPlans: mutable.TreeMap[Long, InitialPlan] =
+    mutable.TreeMap[Long, InitialPlan]()
   val initialPlanTimeMetric: InitialPlanTimeMetric = InitialPlanTimeMetric(
     queryStartTimeMap =
-      mutable.Map[Long, Long](), // executionId to queryStartTime
-    queryEndTimeMap = mutable.Map[Long, Long]()
+      mutable.TreeMap[Long, Long](), // executionId to queryStartTime
+    queryEndTimeMap = mutable.TreeMap[Long, Long]()
   ) // executionId to queryEndTime
 
-  val runtimePlans: mutable.Map[Long, RuntimePlan] =
-    mutable.Map[Long, RuntimePlan]()
-  val stageSubmittedTime: mutable.Map[(Int, Int), Long] =
-    mutable.Map[(Int, Int), Long]() // (stageId, stageAttemptId) -> timeStamp
-  val stageCompletedTime: mutable.Map[(Int, Int), Long] =
-    mutable.Map[(Int, Int), Long]() // (stageId, stageAttemptId) -> timeStamp
-  val stageFirstTaskTime: mutable.Map[(Int, Int), Long] =
-    mutable.Map[(Int, Int), Long]() // (stageId, stageAttemptId) -> timeStamp
-  val stageTotalTaskTime: mutable.Map[(Int, Int), Long] =
-    mutable.Map[(Int, Int), Long]() // (stageId, stageAttemptId) -> duration
+  val runtimePlans: mutable.TreeMap[Long, RuntimePlan] =
+    mutable.TreeMap[Long, RuntimePlan]()
+  val stageSubmittedTime: mutable.TreeMap[Int, Long] =
+    mutable.TreeMap[Int, Long]()
+  val stageCompletedTime: mutable.TreeMap[Int, Long] =
+    mutable.TreeMap[Int, Long]()
+  val stageFirstTaskTime: mutable.TreeMap[Int, Long] =
+    mutable.TreeMap[Int, Long]()
+  val stageTotalTaskTime: mutable.TreeMap[Int, Long] =
+    mutable.TreeMap[Int, Long]()
 
   var successFlag: Boolean = true
 }

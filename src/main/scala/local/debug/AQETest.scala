@@ -13,10 +13,6 @@ import org.json4s.jackson.Serialization.writePretty
 object AQETest {
 
   def main(args: Array[String]): Unit = {
-//    val initialPlans: mutable.Map[Long, InitialPlan] = mutable.Map[Long, InitialPlan]()
-//    val initialPlanTimeMetric: InitialPlanTimeMetric = InitialPlanTimeMetric(
-//      queryStartTimeMap = mutable.Map[Long, Long](), // executionId to queryStartTime
-//      queryEndTimeMap = mutable.Map[Long, Long]()) // executionId to queryEndTime
     val aggMetrics = AggMetrics()
 
     val spark =
@@ -93,11 +89,21 @@ object AQETest {
     //    df.cache()
     //    df.collect()
     //    df.show()
-//    println(s"After Execution: ${writePretty(aggMetrics.initialPlans)(DefaultFormats)}")
 //    println(s"After Execution: ${writePretty(aggMetrics.runtimePlans)(DefaultFormats)}")
-    println(
-      s"Query Time Metric: ${writePretty(aggMetrics.initialPlanTimeMetric)(DefaultFormats)}"
-    )
+    println("---- Initial Plan ----")
+    println(s"${writePretty(aggMetrics.initialPlans)(DefaultFormats)}")
+    println("---- Runtime Plan ----")
+    println(s"${writePretty(aggMetrics.runtimePlans)(DefaultFormats)}")
+    println("---- Query Time Metric ----")
+    println(s"${writePretty(aggMetrics.initialPlanTimeMetric)(DefaultFormats)}")
+    println("---- Run Time Metrics - stageSubmittedTime")
+    println(s"${writePretty(aggMetrics.stageSubmittedTime)(DefaultFormats)}")
+    println("---- Run Time Metrics - stageCompletedTime")
+    println(s"${writePretty(aggMetrics.stageCompletedTime)(DefaultFormats)}")
+    println("---- Run Time Metrics - stageFirstTaskTime")
+    println(s"${writePretty(aggMetrics.stageFirstTaskTime)(DefaultFormats)}")
+    println("---- Run Time Metrics - stageTotalTaskTime")
+    println(s"${writePretty(aggMetrics.stageTotalTaskTime)(DefaultFormats)}")
 
     println("done.")
   }
