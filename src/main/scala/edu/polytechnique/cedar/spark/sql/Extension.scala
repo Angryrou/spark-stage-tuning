@@ -6,11 +6,17 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.plans.logical.Statistics
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.adaptive.{
+  AQEShuffleReadExec,
   BroadcastQueryStageExec,
   ShuffleQueryStageExec,
   TableCacheQueryStageExec
 }
-import org.apache.spark.sql.execution.{SQLExecution, SparkPlan}
+import org.apache.spark.sql.execution.{
+  DataSourceScanExec,
+  FileSourceScanExec,
+  SQLExecution,
+  SparkPlan
+}
 
 import scala.collection.immutable.TreeMap
 import scala.collection.{breakOut, mutable}
@@ -20,6 +26,7 @@ import scala.collection.{breakOut, mutable}
 case class Operator(
     id: Int,
     name: String,
+    className: String,
     sizeInBytes: BigInt,
     rowCount: BigInt,
     isRuntime: Boolean,
@@ -99,6 +106,7 @@ object F {
     val operator = Operator(
       operatorId,
       plan.nodeName,
+      plan.getClass.getName,
       stats.sizeInBytes,
       stats.rowCount.getOrElse(-1),
       stats.isRuntime,
@@ -125,6 +133,7 @@ object F {
       Operator(
         operatorId,
         plan.nodeName,
+        plan.getClass.get,
         newStats.sizeInBytes,
         newStats.rowCount.getOrElse(-1),
         newStats.isRuntime,
@@ -162,6 +171,19 @@ object F {
       }
 
     } else plan.children.map(p => sumLeafRowCount(p, inputType)).sum
+  }
+
+  def getNumTasks(plan: SparkPlan): Int = {
+    plan match {
+      case p: AQEShuffleReadExec      => p.partitionSpecs.length
+      case _: BroadcastQueryStageExec => 0
+      case _: ShuffleQueryStageExec =>
+        throw new Exception(f"should not reach a ShuffleQueryStageExec;")
+      case p: DataSourceScanExec => p.inputRDDs().length
+      case p if p.children.isEmpty =>
+        throw new Exception("should not reach an unmatched LeafExec")
+      case p => p.children.map(getNumTasks).max
+    }
   }
 
 }
@@ -205,6 +227,7 @@ case class ExportRuntimeQueryStage(
   mylog.setLevel(Level.INFO)
 
   def apply(plan: SparkPlan): SparkPlan = {
+
     val executionId: Long = F.getExecutionId(spark).getOrElse(-1)
     mylog.debug(s"$executionId, ${queryStageId}, ${plan.id}, ${plan}")
 
@@ -231,7 +254,8 @@ case class ExportRuntimeQueryStage(
       (for ((operatorId, o) <- operators if o.name contains "QueryStage")
         yield QueryStageLink(operatorId, queryStageId))(breakOut)
     newQueryStageLinks.foreach(qs =>
-      if (qs.fromQSId < qs.toQSId) mylog.warn("${qs.fromQSId} -> ${qs.toQSId}")
+      if (qs.fromQSId >= qs.toQSId)
+        mylog.warn(s"${qs.fromQSId} -> ${qs.toQSId}")
     )
 
     runtimePlans.get(executionId) match {
