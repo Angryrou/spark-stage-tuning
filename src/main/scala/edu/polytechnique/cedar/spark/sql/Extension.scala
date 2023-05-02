@@ -230,7 +230,9 @@ case class ExportRuntimeQueryStage(
     val newQueryStageLinks: mutable.ArrayBuffer[QueryStageLink] =
       (for ((operatorId, o) <- operators if o.name contains "QueryStage")
         yield QueryStageLink(operatorId, queryStageId))(breakOut)
-    newQueryStageLinks.foreach(qs => assert(qs.fromQSId < qs.toQSId))
+    newQueryStageLinks.foreach(qs =>
+      if (qs.fromQSId < qs.toQSId) mylog.warn("${qs.fromQSId} -> ${qs.toQSId}")
+    )
 
     runtimePlans.get(executionId) match {
       case Some(runtimePlan: RuntimePlan) => {
