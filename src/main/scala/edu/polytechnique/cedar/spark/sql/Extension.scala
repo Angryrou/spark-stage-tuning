@@ -192,7 +192,7 @@ object F {
 // inserted rules for extract traces
 case class ExportInitialPlan(
     spark: SparkSession,
-    initialPlans: mutable.TreeMap[Long, InitialPlan]
+    initialPlans: mutable.TreeMap[Long, Seq[InitialPlan]]
 ) extends Rule[SparkPlan] {
 
   val mylog: Logger = Logger.getLogger(getClass.getName)
@@ -201,20 +201,29 @@ case class ExportInitialPlan(
   def apply(plan: SparkPlan): SparkPlan = {
     val executionId: Long = F.getExecutionId(spark).getOrElse(-1)
     assert(executionId >= 0L)
-    if (!initialPlans.contains(executionId)) {
-      mylog.debug("-- traverse plan --")
-      val operators = mutable.TreeMap[Int, Operator]()
-      val links = mutable.ArrayBuffer[OperatorLink]()
-      F.traversePlan(plan, operators, links, -1, Some(mylog))
-      mylog.debug(s"${operators.toString()}, ${links.toString}")
 
-      initialPlans += (executionId -> InitialPlan(
-        TreeMap(operators.toArray: _*),
-        links,
-        F.sumLeafSizeInBytes(plan, InputTypes.File),
-        F.sumLeafRowCount(plan, InputTypes.File)
-      ))
+    mylog.debug("-- traverse plan --")
+    val operators = mutable.TreeMap[Int, Operator]()
+    val links = mutable.ArrayBuffer[OperatorLink]()
+    F.traversePlan(plan, operators, links, -1, Some(mylog))
+    mylog.debug(s"${operators.toString()}, ${links.toString}")
+
+    val initialPlan = InitialPlan(
+      TreeMap(operators.toArray: _*),
+      links,
+      F.sumLeafSizeInBytes(plan, InputTypes.File),
+      F.sumLeafRowCount(plan, InputTypes.File)
+    )
+
+    if (!initialPlans.contains(executionId)) {
+      initialPlans += (executionId -> Seq(initialPlan))
+    } else {
+      initialPlans.update(
+        executionId,
+        initialPlans(executionId) :+ initialPlan
+      )
     }
+
     plan
   }
 }
@@ -282,8 +291,8 @@ case class ExportRuntimeQueryStage(
 }
 
 case class AggMetrics() {
-  val initialPlans: mutable.TreeMap[Long, InitialPlan] =
-    mutable.TreeMap[Long, InitialPlan]()
+  val initialPlans: mutable.TreeMap[Long, Seq[InitialPlan]] =
+    mutable.TreeMap[Long, Seq[InitialPlan]]()
   val initialPlanTimeMetric: InitialPlanTimeMetric = InitialPlanTimeMetric(
     queryStartTimeMap =
       mutable.TreeMap[Long, Long](), // executionId to queryStartTime
