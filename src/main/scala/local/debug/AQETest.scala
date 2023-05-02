@@ -82,14 +82,7 @@ object AQETest {
 
     println(s"Before Execution: ${aggMetrics.initialPlans.toString()}")
     spark.sql(queryContent3).collect()
-    //    val df = spark.sql(queryContent3)
-    //    spark.conf.set("spark.default.parallelism", 16)
-    //    println(spark.conf.get("spark.default.parallelism"))
-    //    println(df.explain("cost"))
-    //    df.cache()
-    //    df.collect()
-    //    df.show()
-//    println(s"After Execution: ${writePretty(aggMetrics.runtimePlans)(DefaultFormats)}")
+
     println("---- Initial Plan ----")
     println(s"${writePretty(aggMetrics.initialPlans)(DefaultFormats)}")
     println("---- Runtime Plan ----")

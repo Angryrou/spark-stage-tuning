@@ -1,11 +1,18 @@
 package edu.polytechnique.cedar.spark.sql
 
+import edu.polytechnique.cedar.spark.sql.InputTypes.InputTypes
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.plans.logical.Statistics
 import org.apache.spark.sql.catalyst.rules.Rule
+import org.apache.spark.sql.execution.adaptive.{
+  BroadcastQueryStageExec,
+  ShuffleQueryStageExec,
+  TableCacheQueryStageExec
+}
 import org.apache.spark.sql.execution.{SQLExecution, SparkPlan}
 
+import scala.collection.immutable.TreeMap
 import scala.collection.{breakOut, mutable}
 
 // node and edges of the operator DAG and queryStage DAG
@@ -22,7 +29,7 @@ case class Operator(
 case class OperatorLink(fromId: Int, toId: Int)
 
 case class InitialPlan(
-    operators: Map[Int, Operator],
+    operators: TreeMap[Int, Operator],
     links: Seq[OperatorLink],
     inputSizeInBytes: BigInt,
     inputRowCount: BigInt
@@ -30,10 +37,17 @@ case class InitialPlan(
 
 case class QueryStage(
     queryStageId: Int,
-    operators: Map[Int, Operator],
+    operators: TreeMap[Int, Operator],
     links: Seq[OperatorLink],
-    inputSizeInBytes: BigInt,
-    inputRowCount: BigInt
+    fileSizeInBytes: BigInt,
+    fileRowCount: BigInt,
+    shuffleSizeInBytes: BigInt,
+    shuffleRowCount: BigInt,
+    broadcastSizeInBytes: BigInt,
+    broadcastRowCount: BigInt,
+    inMemorySizeInBytes: BigInt,
+    inMemoryRowCount: BigInt
+    // numTasks: Int
 )
 
 case class QueryStageLink(fromQSId: Int, toQSId: Int)
@@ -49,6 +63,11 @@ case class InitialPlanTimeMetric(
     queryStartTimeMap: mutable.TreeMap[Long, Long],
     queryEndTimeMap: mutable.TreeMap[Long, Long]
 )
+
+object InputTypes extends Enumeration {
+  type InputTypes = Value
+  val File, Shuffle, Broadcast, InMemory = Value
+}
 
 object F {
 
@@ -114,16 +133,38 @@ object F {
     )
   }
 
-  def sumLeafInputSizeInBytes(plan: SparkPlan): BigInt = if (
-    plan.children.isEmpty
-  ) plan.logicalLink.get.stats.sizeInBytes
-  else plan.children.map(p => sumLeafInputSizeInBytes(p)).sum
+  def sumLeafSizeInBytes(plan: SparkPlan, inputType: InputTypes): BigInt = {
+    if (plan.children.isEmpty) {
+      val sizeInBytes = plan.logicalLink.get.stats.sizeInBytes
+      plan match {
+        case _: BroadcastQueryStageExec =>
+          if (inputType == InputTypes.Broadcast) sizeInBytes else 0
+        case _: ShuffleQueryStageExec =>
+          if (inputType == InputTypes.Shuffle) sizeInBytes else 0
+        case _: TableCacheQueryStageExec =>
+          if (inputType == InputTypes.InMemory) sizeInBytes else 0
+        case _ => if (inputType == InputTypes.File) sizeInBytes else 0
+      }
+    } else plan.children.map(p => sumLeafSizeInBytes(p, inputType)).sum
+  }
 
-  def sumLeafInputRowCount(plan: SparkPlan): BigInt = if (plan.children.isEmpty)
-    plan.logicalLink.get.stats.rowCount.getOrElse(0)
-  else plan.children.map(p => sumLeafInputRowCount(p)).sum
+  def sumLeafRowCount(plan: SparkPlan, inputType: InputTypes): BigInt = {
+    if (plan.children.isEmpty) {
+      val rowCount = plan.logicalLink.get.stats.rowCount.getOrElse(BigInt(0))
+      plan match {
+        case _: BroadcastQueryStageExec =>
+          if (inputType == InputTypes.Broadcast) rowCount else 0
+        case _: ShuffleQueryStageExec =>
+          if (inputType == InputTypes.Shuffle) rowCount else 0
+        case _: TableCacheQueryStageExec =>
+          if (inputType == InputTypes.InMemory) rowCount else 0
+        case _ => if (inputType == InputTypes.File) rowCount else 0
+      }
+
+    } else plan.children.map(p => sumLeafRowCount(p, inputType)).sum
+  }
+
 }
-
 // inserted rules for extract traces
 case class ExportInitialPlan(
     spark: SparkSession,
@@ -144,10 +185,10 @@ case class ExportInitialPlan(
       mylog.debug(s"${operators.toString()}, ${links.toString}")
 
       initialPlans += (executionId -> InitialPlan(
-        operators.toMap,
+        TreeMap(operators.toArray: _*),
         links,
-        F.sumLeafInputSizeInBytes(plan),
-        F.sumLeafInputRowCount(plan)
+        F.sumLeafSizeInBytes(plan, InputTypes.File),
+        F.sumLeafRowCount(plan, InputTypes.File)
       ))
     }
     plan
@@ -174,11 +215,18 @@ case class ExportRuntimeQueryStage(
 
     val queryStage: QueryStage = QueryStage(
       queryStageId,
-      operators.toMap,
+      TreeMap(operators.toArray: _*),
       links,
-      F.sumLeafInputSizeInBytes(plan),
-      F.sumLeafInputRowCount(plan)
+      fileSizeInBytes = F.sumLeafSizeInBytes(plan, InputTypes.File),
+      fileRowCount = F.sumLeafRowCount(plan, InputTypes.File),
+      shuffleSizeInBytes = F.sumLeafSizeInBytes(plan, InputTypes.Shuffle),
+      shuffleRowCount = F.sumLeafRowCount(plan, InputTypes.Shuffle),
+      broadcastSizeInBytes = F.sumLeafSizeInBytes(plan, InputTypes.Broadcast),
+      broadcastRowCount = F.sumLeafRowCount(plan, InputTypes.Broadcast),
+      inMemorySizeInBytes = F.sumLeafSizeInBytes(plan, InputTypes.InMemory),
+      inMemoryRowCount = F.sumLeafRowCount(plan, InputTypes.InMemory)
     )
+
     val newQueryStageLinks: mutable.ArrayBuffer[QueryStageLink] =
       (for ((operatorId, o) <- operators if o.name contains "QueryStage")
         yield QueryStageLink(operatorId, queryStageId))(breakOut)
