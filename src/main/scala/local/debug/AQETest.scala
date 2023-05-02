@@ -1,9 +1,6 @@
 package local.debug
 
-import edu.polytechnique.cedar.spark.listeners.{
-  MyQueryExecutionListener,
-  MySparkListener
-}
+import edu.polytechnique.cedar.spark.listeners.MySparkListener
 import edu.polytechnique.cedar.spark.sql.{
   AggMetrics,
   ExportInitialPlan,
