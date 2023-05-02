@@ -53,8 +53,8 @@ case class QueryStage(
     broadcastSizeInBytes: BigInt,
     broadcastRowCount: BigInt,
     inMemorySizeInBytes: BigInt,
-    inMemoryRowCount: BigInt
-    // numTasks: Int
+    inMemoryRowCount: BigInt,
+    numTasks: Int
 )
 
 case class QueryStageLink(fromQSId: Int, toQSId: Int)
@@ -175,14 +175,16 @@ object F {
 
   def getNumTasks(plan: SparkPlan): Int = {
     plan match {
-      case p: AQEShuffleReadExec      => p.partitionSpecs.length
-      case _: BroadcastQueryStageExec => 0
-      case _: ShuffleQueryStageExec =>
-        throw new Exception(f"should not reach a ShuffleQueryStageExec;")
-      case p: DataSourceScanExec => p.inputRDDs().length
-      case p if p.children.isEmpty =>
-        throw new Exception("should not reach an unmatched LeafExec")
-      case p => p.children.map(getNumTasks).max
+      case p: AQEShuffleReadExec                                => p.partitionSpecs.length
+      case _: BroadcastQueryStageExec                           => 1
+      case p: ShuffleQueryStageExec                             => p.shuffle.numPartitions
+      case p: FileSourceScanExec                                => p.inputRDDs().length
+      case p if p.getClass.getSimpleName == "HiveTableScanExec" => 1
+      case p if p.children.nonEmpty                             => p.children.map(getNumTasks).max
+      case p =>
+        throw new Exception(
+          s"should not reach an unmatched LeafExec ${p.getClass.getName}"
+        )
     }
   }
 
@@ -247,7 +249,8 @@ case class ExportRuntimeQueryStage(
       broadcastSizeInBytes = F.sumLeafSizeInBytes(plan, InputTypes.Broadcast),
       broadcastRowCount = F.sumLeafRowCount(plan, InputTypes.Broadcast),
       inMemorySizeInBytes = F.sumLeafSizeInBytes(plan, InputTypes.InMemory),
-      inMemoryRowCount = F.sumLeafRowCount(plan, InputTypes.InMemory)
+      inMemoryRowCount = F.sumLeafRowCount(plan, InputTypes.InMemory),
+      numTasks = F.getNumTasks(plan)
     )
 
     val newQueryStageLinks: mutable.ArrayBuffer[QueryStageLink] =
