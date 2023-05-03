@@ -3,6 +3,7 @@ package edu.polytechnique.cedar.spark.sql
 import edu.polytechnique.cedar.spark.sql.InputTypes.InputTypes
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.expressions.{Expression, PlanExpression}
 import org.apache.spark.sql.catalyst.plans.logical.Statistics
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.adaptive.{
@@ -11,8 +12,8 @@ import org.apache.spark.sql.execution.adaptive.{
   ShuffleQueryStageExec,
   TableCacheQueryStageExec
 }
+import org.apache.spark.sql.execution.datasources.FilePartition
 import org.apache.spark.sql.execution.{
-  DataSourceScanExec,
   FileSourceScanExec,
   SQLExecution,
   SparkPlan
@@ -173,12 +174,69 @@ object F {
     } else plan.children.map(p => sumLeafRowCount(p, inputType)).sum
   }
 
+  def getFileSourcePartitionNum(f: FileSourceScanExec): Int = {
+    // a simplified version (for our TPCH/TPCDS trace collection)
+    // f.optionalBucketSet is not defined
+    // => val bucketedScan = false
+    // => use the logic of `createReadRDD` to simulate the RDD creation and get the latency with light overhead
+
+    val relation = f.relation
+
+    def isDynamicPruningFilter(e: Expression): Boolean =
+      e.exists(_.isInstanceOf[PlanExpression[_]])
+
+    // 1. get selectedPartitions
+    // 2. assume dynamicallySelectedPartitions = selectedPartitions (verified in most of our trace collections)
+
+    // We can only determine the actual partitions at runtime when a dynamic partition filter is
+    // present. This is because such a filter relies on information that is only available at run
+    // time (for instance the keys used in the other side of a join).
+
+    val selectedPartitions = relation.location.listFiles(
+      f.partitionFilters.filterNot(isDynamicPruningFilter),
+      f.dataFilters
+    )
+    val openCostInBytes =
+      relation.sparkSession.sessionState.conf.filesOpenCostInBytes
+    val maxSplitBytes =
+      FilePartition.maxSplitBytes(relation.sparkSession, selectedPartitions)
+
+    // derived the functionality from [[org.apache.spark.sql.execution.PartitionedFileUtil.splitFiles]]
+    val splitFileSizes = selectedPartitions.flatMap { partition =>
+      partition.files.flatMap(file =>
+        (0L until file.getLen by maxSplitBytes).map { offset =>
+          val remaining = file.getLen - offset
+          if (remaining > maxSplitBytes) maxSplitBytes else remaining
+        }
+      )
+    }
+    // derived the functionality from [[org.apache.spark.sql.execution.datasources.FilePartition.getFilePartitions]]
+    var numPartitions: Int = 0
+    var currentSize: Long = 0L
+
+    def closePartition(): Unit = {
+      if (currentSize > 0L) {
+        numPartitions += 1
+      }
+      currentSize = 0L
+    }
+
+    splitFileSizes.foreach { fileSize =>
+      if (currentSize + fileSize > maxSplitBytes) {
+        closePartition()
+      }
+      currentSize += fileSize + openCostInBytes
+    }
+    closePartition()
+    numPartitions
+  }
+
   def getNumTasks(plan: SparkPlan): Int = {
     plan match {
       case p: AQEShuffleReadExec                                => p.partitionSpecs.length
       case _: BroadcastQueryStageExec                           => 1
       case p: ShuffleQueryStageExec                             => p.shuffle.numPartitions
-      case p: FileSourceScanExec                                => p.inputRDDs().length
+      case f: FileSourceScanExec                                => getFileSourcePartitionNum(f)
       case p if p.getClass.getSimpleName == "HiveTableScanExec" => 1
       case p if p.children.nonEmpty                             => p.children.map(getNumTasks).max
       case p =>
