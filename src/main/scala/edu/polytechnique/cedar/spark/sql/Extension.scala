@@ -259,29 +259,21 @@ case class ExportInitialPlan(
   def apply(plan: SparkPlan): SparkPlan = {
     val executionId: Long = F.getExecutionId(spark).getOrElse(-1)
     assert(executionId >= 0L)
-
-    mylog.debug("-- traverse plan --")
-    val operators = mutable.TreeMap[Int, Operator]()
-    val links = mutable.ArrayBuffer[OperatorLink]()
-    F.traversePlan(plan, operators, links, -1, Some(mylog))
-    mylog.debug(s"${operators.toString()}, ${links.toString}")
-
-    val initialPlan = InitialPlan(
-      TreeMap(operators.toArray: _*),
-      links,
-      F.sumLeafSizeInBytes(plan, InputTypes.File),
-      F.sumLeafRowCount(plan, InputTypes.File)
-    )
-
     if (!initialPlans.contains(executionId)) {
-      initialPlans += (executionId -> Seq(initialPlan))
-    } else {
-      initialPlans.update(
-        executionId,
-        initialPlans(executionId) :+ initialPlan
-      )
-    }
+      mylog.debug("-- traverse plan --")
+      val operators = mutable.TreeMap[Int, Operator]()
+      val links = mutable.ArrayBuffer[OperatorLink]()
+      F.traversePlan(plan, operators, links, -1, Some(mylog))
+      mylog.debug(s"${operators.toString()}, ${links.toString}")
 
+      val initialPlan = InitialPlan(
+        TreeMap(operators.toArray: _*),
+        links,
+        F.sumLeafSizeInBytes(plan, InputTypes.File),
+        F.sumLeafRowCount(plan, InputTypes.File)
+      )
+      initialPlans += (executionId -> Seq(initialPlan))
+    }
     plan
   }
 }
@@ -354,8 +346,9 @@ case class AggMetrics() {
   val initialPlanTimeMetric: InitialPlanTimeMetric = InitialPlanTimeMetric(
     queryStartTimeMap =
       mutable.TreeMap[Long, Long](), // executionId to queryStartTime
-    queryEndTimeMap = mutable.TreeMap[Long, Long]()
-  ) // executionId to queryEndTime
+    queryEndTimeMap =
+      mutable.TreeMap[Long, Long]() // executionId to queryEndTime
+  )
 
   val runtimePlans: mutable.TreeMap[Long, RuntimePlan] =
     mutable.TreeMap[Long, RuntimePlan]()
