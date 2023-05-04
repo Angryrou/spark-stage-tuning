@@ -11,7 +11,8 @@ case class RunTemplateQueryConfig(
     queryLocationHeader: String = null,
     databaseName: String = null,
     queryName: String = null,
-    templateName: String = null
+    templateName: String = null,
+    localDebug: Boolean = false
 )
 
 object RunTemplateQuery {
@@ -43,6 +44,9 @@ object RunTemplateQuery {
         opt[String]('n', "databaseName")
           .action((x, c) => c.copy(databaseName = x))
           .text("customized databaseName")
+        opt[String]('d', "localDebug")
+          .action((x, c) => c.copy(localDebug = x.toBoolean))
+          .text("Local debug")
         help("help")
           .text("prints this usage text")
       }
@@ -58,19 +62,37 @@ object RunTemplateQuery {
   def run(config: RunTemplateQueryConfig): Unit = {
     assert(config.benchmarkName == "TPCH" || config.benchmarkName == "TPCDS")
     val aggMetrics = AggMetrics()
-
-    val spark = SparkSession
-      .builder()
-      .withExtensions { extensions =>
-        extensions.injectQueryStagePrepRule(
-          ExportInitialPlan(_, aggMetrics.initialPlans)
-        )
-        extensions.injectQueryStageOptimizerRule(
-          ExportRuntimeQueryStage(_, aggMetrics.runtimePlans)
-        )
-      }
-      .enableHiveSupport()
-      .getOrCreate()
+    val spark = if (config.localDebug) {
+      SparkSession
+        .builder()
+        .config("spark.master", "local[2]")
+        .config("spark.default.parallelism", "4")
+        .config("spark.sql.adaptive.enable", "true")
+        .config("spark.yarn.historyServer.address", "http://localhost:18088")
+        .withExtensions { extensions =>
+          extensions.injectQueryStagePrepRule(
+            ExportInitialPlan(_, aggMetrics.initialPlans)
+          )
+          extensions.injectQueryStageOptimizerRule(
+            ExportRuntimeQueryStage(_, aggMetrics.runtimePlans)
+          )
+        }
+        .enableHiveSupport()
+        .getOrCreate()
+    } else {
+      SparkSession
+        .builder()
+        .withExtensions { extensions =>
+          extensions.injectQueryStagePrepRule(
+            ExportInitialPlan(_, aggMetrics.initialPlans)
+          )
+          extensions.injectQueryStageOptimizerRule(
+            ExportRuntimeQueryStage(_, aggMetrics.runtimePlans)
+          )
+        }
+        .enableHiveSupport()
+        .getOrCreate()
+    }
 
     spark.sparkContext.addSparkListener(MySparkListener(aggMetrics))
     val databaseName =
