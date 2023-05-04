@@ -197,9 +197,9 @@ object F {
       f.dataFilters
     )
     val openCostInBytes =
-      relation.sparkSession.sessionState.conf.filesOpenCostInBytes
+      f.session.sessionState.conf.filesOpenCostInBytes
     val maxSplitBytes =
-      FilePartition.maxSplitBytes(relation.sparkSession, selectedPartitions)
+      FilePartition.maxSplitBytes(f.session, selectedPartitions)
 
     // derived the functionality from [[org.apache.spark.sql.execution.PartitionedFileUtil.splitFiles]]
     val splitFileSizes = selectedPartitions.flatMap { partition =>
