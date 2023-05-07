@@ -1,0 +1,414 @@
+@@ -1,413 +0,0 @@
+package edu.polytechnique.cedar.spark.sql
+
+import edu.polytechnique.cedar.spark.sql.InputTypes.InputTypes
+import org.apache.log4j.{Level, Logger}
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.expressions.{Expression, PlanExpression}
+import org.apache.spark.sql.catalyst.plans.logical.Statistics
+import org.apache.spark.sql.catalyst.rules.Rule
+import org.apache.spark.sql.execution.adaptive.{
+  AQEShuffleReadExec,
+  BroadcastQueryStageExec,
+  ShuffleQueryStageExec,
+  TableCacheQueryStageExec
+}
+import org.apache.spark.sql.execution.datasources.FilePartition
+import org.apache.spark.sql.execution.{
+  FileSourceScanExec,
+  SQLExecution,
+  SparkPlan
+}
+
+import scala.collection.immutable.TreeMap
+import scala.collection.{breakOut, mutable}
+
+import org.json4s.JsonDSL._
+import org.json4s.jackson.JsonMethods.{render, compact, pretty}
+
+// node and edges of the operator DAG and queryStage DAG
+case class Operator(
+    id: Int,
+    uniqOperatorId: Int, // to unwrap ReusedExchangeExec
+    name: String,
+    className: String,
+    sizeInBytes: BigInt,
+    rowCount: BigInt,
+    isRuntime: Boolean,
+    predicate: String
+)
+
+case class OperatorLink(fromId: Int, toId: Int)
+
+case class InitialPlan(
+    operators: TreeMap[Int, Operator],
+    links: Seq[OperatorLink],
+    inputSizeInBytes: BigInt,
+    inputRowCount: BigInt
+)
+
+case class QueryStage(
+    queryStageId: Int,
+    operators: TreeMap[Int, Operator],
+    links: Seq[OperatorLink],
+    fileSizeInBytes: BigInt,
+    fileRowCount: BigInt,
+    shuffleSizeInBytes: BigInt,
+    shuffleRowCount: BigInt,
+    broadcastSizeInBytes: BigInt,
+    broadcastRowCount: BigInt,
+    inMemorySizeInBytes: BigInt,
+    inMemoryRowCount: BigInt,
+    numTasks: Int
+)
+
+case class QueryStageLink(fromQSId: Int, toQSId: Int)
+
+case class RuntimePlan(
+    queryStages: mutable.TreeMap[Int, QueryStage],
+    queryStagesLinks: mutable.ArrayBuffer[QueryStageLink]
+)
+
+// time metrics
+
+case class InitialPlanTimeMetric(
+    queryStartTimeMap: mutable.TreeMap[Long, Long],
+    queryEndTimeMap: mutable.TreeMap[Long, Long]
+)
+
+object InputTypes extends Enumeration {
+  type InputTypes = Value
+  val File, Shuffle, Broadcast, InMemory = Value
+}
+
+object F {
+
+  // supportive functions
+
+  def getExecutionId(spark: SparkSession): Option[Long] = {
+    Option(spark.sparkContext.getLocalProperty(SQLExecution.EXECUTION_ID_KEY))
+      .map(_.toLong)
+  }
+
+  def showChildren(plan: SparkPlan): Unit = {
+    println(plan.nodeName, plan.id)
+    plan.children.foreach(showChildren)
+  }
+
+  def traversePlan(
+      plan: SparkPlan,
+      uniqueOperatorIdMap: mutable.TreeMap[Int, Int],
+      operators: mutable.TreeMap[Int, Operator],
+      links: mutable.ArrayBuffer[OperatorLink],
+      rootId: Int,
+      mylog: Option[Logger] = None
+  ): Unit = {
+
+    val uniqOperatorId = plan match {
+      case p: ShuffleQueryStageExec =>
+        assert(p.canonicalized.children.size == 1)
+        println(
+          "EDGE!",
+          p.id,
+          p.nodeName,
+          p.canonicalized.children.map(_.toString())
+        )
+        p.shuffle.id
+      case p => p.id
+    }
+    val operatorId = uniqueOperatorIdMap.get(uniqOperatorId) match {
+      case Some(i) => i
+      case None    => plan.id
+    }
+
+    if (!uniqueOperatorIdMap.contains(uniqOperatorId)) {
+      val stats: Statistics = plan.logicalLink match {
+        case Some(lgPlan) => lgPlan.stats
+        case None         => Statistics(-1)
+      }
+
+      val operator = Operator(
+        operatorId,
+        uniqOperatorId, // wrapped operatorId, diff from operatorId when `ReusedExchangeExec`
+        plan.nodeName,
+        plan.getClass.getName,
+        stats.sizeInBytes,
+        stats.rowCount.getOrElse(-1),
+        stats.isRuntime,
+        plan.verboseStringWithOperatorId()
+      )
+      operators += (operatorId -> operator)
+      plan.children.foreach(
+        traversePlan(_, uniqueOperatorIdMap, operators, links, operatorId)
+      )
+//      val newStats: Statistics = plan.logicalLink match {
+//        case Some(lgPlan) => lgPlan.stats
+//        case None         => Statistics(-1)
+//      }
+//
+//      operators.update(
+//        operatorId,
+//        Operator(
+//          operatorId,
+//          uniqOperatorId,
+//          plan.nodeName,
+//          plan.getClass.getName,
+//          newStats.sizeInBytes,
+//          newStats.rowCount.getOrElse(-1),
+//          newStats.isRuntime,
+//          plan.verboseStringWithOperatorId()
+//        )
+//      )
+      uniqueOperatorIdMap += (uniqOperatorId -> operatorId)
+    }
+    if (rootId != -1) {
+      links.append(OperatorLink(operatorId, rootId))
+      mylog match {
+        case Some(l) => l.debug(s"add $operatorId -> $rootId")
+        case None    =>
+      }
+    }
+  }
+
+  def sumLeafSizeInBytes(plan: SparkPlan, inputType: InputTypes): BigInt = {
+    if (plan.children.isEmpty) {
+      val sizeInBytes = plan.logicalLink.get.stats.sizeInBytes
+      plan match {
+        case _: BroadcastQueryStageExec =>
+          if (inputType == InputTypes.Broadcast) sizeInBytes else 0
+        case _: ShuffleQueryStageExec =>
+          if (inputType == InputTypes.Shuffle) sizeInBytes else 0
+        case _: TableCacheQueryStageExec =>
+          if (inputType == InputTypes.InMemory) sizeInBytes else 0
+        case _ => if (inputType == InputTypes.File) sizeInBytes else 0
+      }
+    } else plan.children.map(p => sumLeafSizeInBytes(p, inputType)).sum
+  }
+
+  def sumLeafRowCount(plan: SparkPlan, inputType: InputTypes): BigInt = {
+    if (plan.children.isEmpty) {
+      val rowCount = plan.logicalLink.get.stats.rowCount.getOrElse(BigInt(0))
+      plan match {
+        case _: BroadcastQueryStageExec =>
+          if (inputType == InputTypes.Broadcast) rowCount else 0
+        case _: ShuffleQueryStageExec =>
+          if (inputType == InputTypes.Shuffle) rowCount else 0
+        case _: TableCacheQueryStageExec =>
+          if (inputType == InputTypes.InMemory) rowCount else 0
+        case _ => if (inputType == InputTypes.File) rowCount else 0
+      }
+
+    } else plan.children.map(p => sumLeafRowCount(p, inputType)).sum
+  }
+
+  def getFileSourcePartitionNum(f: FileSourceScanExec): Int = {
+    // a simplified version (for our TPCH/TPCDS trace collection)
+    // f.optionalBucketSet is not defined
+    // => val bucketedScan = false
+    // => use the logic of `createReadRDD` to simulate the RDD creation and get the latency with light overhead
+
+    val relation = f.relation
+
+    def isDynamicPruningFilter(e: Expression): Boolean =
+      e.exists(_.isInstanceOf[PlanExpression[_]])
+
+    // 1. get selectedPartitions
+    // 2. assume dynamicallySelectedPartitions = selectedPartitions (verified in most of our trace collections)
+
+    // We can only determine the actual partitions at runtime when a dynamic partition filter is
+    // present. This is because such a filter relies on information that is only available at run
+    // time (for instance the keys used in the other side of a join).
+
+    val selectedPartitions = relation.location.listFiles(
+      f.partitionFilters.filterNot(isDynamicPruningFilter),
+      f.dataFilters
+    )
+    val openCostInBytes =
+      f.session.sessionState.conf.filesOpenCostInBytes
+    val maxSplitBytes =
+      FilePartition.maxSplitBytes(f.session, selectedPartitions)
+
+    // derived the functionality from [[org.apache.spark.sql.execution.PartitionedFileUtil.splitFiles]]
+    val splitFileSizes = selectedPartitions.flatMap { partition =>
+      partition.files.flatMap(file =>
+        (0L until file.getLen by maxSplitBytes).map { offset =>
+          val remaining = file.getLen - offset
+          if (remaining > maxSplitBytes) maxSplitBytes else remaining
+        }
+      )
+    }
+    // derived the functionality from [[org.apache.spark.sql.execution.datasources.FilePartition.getFilePartitions]]
+    var numPartitions: Int = 0
+    var currentSize: Long = 0L
+
+    def closePartition(): Unit = {
+      if (currentSize > 0L) {
+        numPartitions += 1
+      }
+      currentSize = 0L
+    }
+
+    splitFileSizes.foreach { fileSize =>
+      if (currentSize + fileSize > maxSplitBytes) {
+        closePartition()
+      }
+      currentSize += fileSize + openCostInBytes
+    }
+    closePartition()
+    numPartitions
+  }
+
+  def getNumTasks(plan: SparkPlan): Int = {
+    plan match {
+      case p: AQEShuffleReadExec                                => p.partitionSpecs.length
+      case _: BroadcastQueryStageExec                           => 1
+      case p: ShuffleQueryStageExec                             => p.shuffle.numPartitions
+      case f: FileSourceScanExec                                => getFileSourcePartitionNum(f)
+      case p if p.getClass.getSimpleName == "HiveTableScanExec" => 1
+      case p if p.children.nonEmpty                             => p.children.map(getNumTasks).max
+      case p =>
+        throw new Exception(
+          s"should not reach an unmatched LeafExec ${p.getClass.getName}"
+        )
+    }
+  }
+
+}
+// inserted rules for extract traces
+case class ExportInitialPlan(
+    spark: SparkSession,
+    initialPlans: mutable.TreeMap[Long, Seq[InitialPlan]]
+) extends Rule[SparkPlan] {
+
+  val mylog: Logger = Logger.getLogger(getClass.getName)
+  mylog.setLevel(Level.INFO)
+  val uniqueOperatorIdMap: mutable.TreeMap[Int, Int] = mutable.TreeMap()
+
+  def apply(plan: SparkPlan): SparkPlan = {
+    val executionId: Long = F.getExecutionId(spark).getOrElse(-1)
+    assert(executionId >= 0L)
+    if (!initialPlans.contains(executionId)) {
+      mylog.debug("-- traverse plan --")
+      val operators = mutable.TreeMap[Int, Operator]()
+      val links = mutable.ArrayBuffer[OperatorLink]()
+      F.traversePlan(
+        plan,
+        uniqueOperatorIdMap,
+        operators,
+        links,
+        -1,
+        Some(mylog)
+      )
+      mylog.debug(s"${operators.toString()}, ${links.toString}")
+
+      val initialPlan = InitialPlan(
+        TreeMap(operators.toArray: _*),
+        links,
+        F.sumLeafSizeInBytes(plan, InputTypes.File),
+        F.sumLeafRowCount(plan, InputTypes.File)
+      )
+      initialPlans += (executionId -> Seq(initialPlan))
+    }
+    plan
+  }
+}
+
+case class ExportRuntimeQueryStage(
+    spark: SparkSession,
+    runtimePlans: mutable.TreeMap[Long, RuntimePlan]
+) extends Rule[SparkPlan] {
+
+  val mylog: Logger = Logger.getLogger(getClass.getName)
+  mylog.setLevel(Level.ERROR)
+  var queryStageId: Int = 0
+  var queryStageHashCode: Set[Int] = Set()
+  val uniqueOperatorIdMap: mutable.TreeMap[Int, Int] = mutable.TreeMap()
+
+  def apply(plan: SparkPlan): SparkPlan = {
+
+    val executionId: Long = F.getExecutionId(spark).getOrElse(-1)
+    mylog.warn(s"$executionId, ${queryStageId}, ${plan.id}, ${plan}")
+    println(plan.id, plan.nodeName, plan.canonicalized.toString())
+
+    // use the hashCode of a plan to identify whether a plan is being reused.
+    if (!queryStageHashCode.contains(plan.hashCode())) {
+      val operators = mutable.TreeMap[Int, Operator]()
+      val links = mutable.ArrayBuffer[OperatorLink]()
+      F.traversePlan(
+        plan,
+        uniqueOperatorIdMap,
+        operators,
+        links,
+        -1,
+        Some(mylog)
+      )
+
+      val queryStage: QueryStage = QueryStage(
+        queryStageId,
+        TreeMap(operators.toArray: _*),
+        links,
+        fileSizeInBytes = F.sumLeafSizeInBytes(plan, InputTypes.File),
+        fileRowCount = F.sumLeafRowCount(plan, InputTypes.File),
+        shuffleSizeInBytes = F.sumLeafSizeInBytes(plan, InputTypes.Shuffle),
+        shuffleRowCount = F.sumLeafRowCount(plan, InputTypes.Shuffle),
+        broadcastSizeInBytes = F.sumLeafSizeInBytes(plan, InputTypes.Broadcast),
+        broadcastRowCount = F.sumLeafRowCount(plan, InputTypes.Broadcast),
+        inMemorySizeInBytes = F.sumLeafSizeInBytes(plan, InputTypes.InMemory),
+        inMemoryRowCount = F.sumLeafRowCount(plan, InputTypes.InMemory),
+        numTasks = F.getNumTasks(plan)
+      )
+
+      val newQueryStageLinks: mutable.ArrayBuffer[QueryStageLink] =
+        (for ((operatorId, o) <- operators if o.name contains "QueryStage")
+          yield QueryStageLink(operatorId, queryStageId))(breakOut)
+      newQueryStageLinks.foreach(qs =>
+        if (qs.fromQSId >= qs.toQSId)
+          mylog.warn(s"${qs.fromQSId} -> ${qs.toQSId}")
+      )
+
+      runtimePlans.get(executionId) match {
+        case Some(runtimePlan: RuntimePlan) => {
+          assert(!runtimePlan.queryStages.contains(queryStageId))
+          runtimePlan.queryStages += (queryStageId -> queryStage)
+          runtimePlan.queryStagesLinks ++= newQueryStageLinks
+        }
+        case None => {
+          val queryStages: mutable.TreeMap[Int, QueryStage] =
+            mutable.TreeMap[Int, QueryStage](queryStageId -> queryStage)
+          val queryStageLinks: mutable.ArrayBuffer[QueryStageLink] =
+            newQueryStageLinks
+          val runtimePlan: RuntimePlan =
+            RuntimePlan(queryStages, queryStageLinks)
+          runtimePlans += (executionId -> runtimePlan)
+        }
+      }
+      queryStageId += 1
+      queryStageHashCode += plan.hashCode()
+    }
+    plan
+  }
+}
+
+case class AggMetrics() {
+  val initialPlans: mutable.TreeMap[Long, Seq[InitialPlan]] =
+    mutable.TreeMap[Long, Seq[InitialPlan]]()
+  val initialPlanTimeMetric: InitialPlanTimeMetric = InitialPlanTimeMetric(
+    queryStartTimeMap =
+      mutable.TreeMap[Long, Long](), // executionId to queryStartTime
+    queryEndTimeMap =
+      mutable.TreeMap[Long, Long]() // executionId to queryEndTime
+  )
+
+  val runtimePlans: mutable.TreeMap[Long, RuntimePlan] =
+    mutable.TreeMap[Long, RuntimePlan]()
+  val stageSubmittedTime: mutable.TreeMap[Int, Long] =
+    mutable.TreeMap[Int, Long]()
+  val stageCompletedTime: mutable.TreeMap[Int, Long] =
+    mutable.TreeMap[Int, Long]()
+  val stageFirstTaskTime: mutable.TreeMap[Int, Long] =
+    mutable.TreeMap[Int, Long]()
+  val stageTotalTaskTime: mutable.TreeMap[Int, Long] =
+    mutable.TreeMap[Int, Long]()
+
+  var successFlag: Boolean = true
+}
