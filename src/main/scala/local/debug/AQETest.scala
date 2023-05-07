@@ -3,8 +3,8 @@ package local.debug
 import edu.polytechnique.cedar.spark.listeners.MySparkListener
 import edu.polytechnique.cedar.spark.sql.{
   AggMetrics,
-  ExportInitialPlan,
-  ExportRuntimeQueryStage
+  ExportInitialPlan
+//  ExportRuntimeQueryStage
 }
 import org.apache.spark.sql.SparkSession
 import org.json4s.DefaultFormats
@@ -32,9 +32,9 @@ object AQETest {
               extensions.injectQueryStagePrepRule(
                 ExportInitialPlan(_, aggMetrics.initialPlans)
               )
-              extensions.injectQueryStageOptimizerRule(
-                ExportRuntimeQueryStage(_, aggMetrics.runtimePlans)
-              )
+//              extensions.injectQueryStageOptimizerRule(
+//                ExportRuntimeQueryStage(_, aggMetrics.runtimePlans)
+//              )
             }
             .enableHiveSupport()
             .getOrCreate()

@@ -65,7 +65,7 @@ object RunTemplateQuery {
     val spark = if (config.localDebug) {
       SparkSession
         .builder()
-        .config("spark.master", "local[2]")
+        .config("spark.master", "local[*]")
         .config("spark.default.parallelism", "4")
         .config("spark.sql.adaptive.enable", "true")
         .config("spark.yarn.historyServer.address", "http://localhost:18088")
@@ -118,12 +118,13 @@ object RunTemplateQuery {
     println(queryContent)
     spark.sql(queryContent).collect()
 
+    aggMetrics.runtimePlans.terminate()
     spark.close()
 
     println("---- Initial Plan ----")
-    println(s"${writePretty(aggMetrics.initialPlans)(DefaultFormats)}")
+    println(aggMetrics.initialPlans.toString)
     println("---- Runtime Plan ----")
-    println(s"${writePretty(aggMetrics.runtimePlans)(DefaultFormats)}")
+    println(aggMetrics.runtimePlans.toString)
     println("---- Query Time Metric ----")
     println(s"${writePretty(aggMetrics.initialPlanTimeMetric)(DefaultFormats)}")
     println("---- Run Time Metrics - stageSubmittedTime")
