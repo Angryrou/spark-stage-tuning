@@ -4,7 +4,7 @@ import edu.polytechnique.cedar.spark.sql.InType.InType
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.{Expression, PlanExpression}
-import org.apache.spark.sql.catalyst.plans.logical.Statistics
+import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, Statistics}
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.adaptive.{
   AQEShuffleReadExec,
@@ -120,25 +120,32 @@ case class QueryStageLink(fromQSId: Int, toQSId: Int) extends MyUnit {
     render(json)
   }
 }
-case class CanonQueryStagesLinks(fromQSCanon: SparkPlan, toQSCanon: SparkPlan)
+case class CanonQueryStagesLinks(
+    fromQSCanon: LogicalPlan,
+    toQSCanon: LogicalPlan
+)
 
 case class RuntimePlan(
-    canon2QueryStages: mutable.LinkedHashMap[SparkPlan, PlanQueryStage],
-    canon2QueryStageIds: mutable.LinkedHashMap[SparkPlan, Int],
+    canon2QueryStages: mutable.LinkedHashMap[LogicalPlan, PlanQueryStage],
+    canon2QueryStageIds: mutable.LinkedHashMap[LogicalPlan, Int],
     canonQueryStagesLinks: mutable.ArrayBuffer[CanonQueryStagesLinks]
 ) extends MyUnit {
   var terminated: Boolean = false
-  def contains(canon: SparkPlan): Boolean = canon2QueryStages.contains(canon)
+  def contains(canon: SparkPlan): Boolean =
+    canon2QueryStages.contains(canon.logicalLink.get)
   def addQueryStage(canon: SparkPlan, queryStage: PlanQueryStage): Unit = {
-    canon2QueryStages += (canon -> queryStage)
+    canon2QueryStages += (canon.logicalLink.get -> queryStage)
   }
   def addQueryStageId(canon: SparkPlan, queryStageId: Int): Unit = {
-    if (!canon2QueryStageIds.contains(canon)) {
-      canon2QueryStageIds += (canon -> queryStageId)
+    if (!canon2QueryStageIds.contains(canon.logicalLink.get)) {
+      canon2QueryStageIds += (canon.logicalLink.get -> queryStageId)
     }
   }
   def addLink(canon1: SparkPlan, canon2: SparkPlan): Unit = {
-    canonQueryStagesLinks += CanonQueryStagesLinks(canon1, canon2)
+    canonQueryStagesLinks += CanonQueryStagesLinks(
+      canon1.logicalLink.get,
+      canon2.logicalLink.get
+    )
   }
   def analyzeQueryStage(canon: SparkPlan, plan: SparkPlan): Unit = {
     plan.foreach {
@@ -146,7 +153,7 @@ case class RuntimePlan(
         assert(p.canonicalized.children.length == 1)
         val childCanon = p.canonicalized.children.head
 //        assert(canon2QueryStages.contains(childCanon))
-        if (!canon2QueryStages.contains(childCanon)) {
+        if (!canon2QueryStages.contains(childCanon.logicalLink.get)) {
           println("debug")
         }
         addQueryStageId(
@@ -204,8 +211,8 @@ class RuntimePlans extends MyUnit {
       case None =>
         planMaps += (executionId -> RuntimePlan(
           canon2QueryStages =
-            mutable.LinkedHashMap[SparkPlan, PlanQueryStage](),
-          canon2QueryStageIds = mutable.LinkedHashMap[SparkPlan, Int](),
+            mutable.LinkedHashMap[LogicalPlan, PlanQueryStage](),
+          canon2QueryStageIds = mutable.LinkedHashMap[LogicalPlan, Int](),
           canonQueryStagesLinks = mutable.ArrayBuffer[CanonQueryStagesLinks]()
         ))
         planMaps(executionId)
