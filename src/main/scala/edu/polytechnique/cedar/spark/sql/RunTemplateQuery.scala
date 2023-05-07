@@ -66,8 +66,22 @@ object RunTemplateQuery {
       SparkSession
         .builder()
         .config("spark.master", "local[*]")
-        .config("spark.default.parallelism", "4")
+        .config("spark.default.parallelism", "40")
+        .config("spark.reducer.maxSizeInFlight", "48m")
+        .config("spark.shuffle.sort.bypassMergeThreshold", "200")
+        .config("spark.shuffle.compress", "true")
+        .config("spark.memory.fraction", "0.6")
+        .config("spark.sql.inMemoryColumnarStorage.batchSize", "10000")
+        .config("spark.sql.files.maxPartitionBytes", "128MB")
+        .config("spark.sql.autoBroadcastJoinThreshold", "10MB")
+        .config("spark.sql.shuffle.partitions", "200")
         .config("spark.sql.adaptive.enable", "true")
+        .config("spark.sql.parquet.compression.codec", "snappy")
+        .config(
+          "spark.serializer",
+          "org.apache.spark.serializer.KryoSerializer"
+        )
+        .config("spark.kryoserializer.buffer.max", "512m")
         .config("spark.yarn.historyServer.address", "http://localhost:18088")
         .withExtensions { extensions =>
           extensions.injectQueryStagePrepRule(
