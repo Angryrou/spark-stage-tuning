@@ -197,29 +197,37 @@ case class RuntimePlan(
         depType
       )
     }
-
   }
 
   def addQueryStage(sign: QueryStageSign, queryStage: PlanQueryStage): Unit = {
     assert(!sign2QueryStages.contains(sign.global))
     sign2QueryStages += (sign.global -> queryStage)
     subquerySignList.append(sign.subquery)
-
+    queryStage.plan.foreachUp {
+      case p: ExchangeQueryStageExec =>
+        assert(p.children.isEmpty && p.canonicalized.children.length == 1)
+        val childSign = QueryStageSign(p.canonicalized.children.head)
+        if (!sign2QueryStages.contains(childSign.global))
+          println("debug")
+        addLink(
+          childSign.global,
+          sign.global,
+          if (p.isInstanceOf[ShuffleQueryStageExec]) DepType.Shuffle
+          else DepType.Broadcast,
+          isSubquery = false
+        )
+      case _: AdaptiveSparkPlanExec => throw new Exception("sth wrong")
+      case _: SubqueryExec          => throw new Exception("sth wrong")
+      case _: FileSourceScanExec    =>
+      case _: InMemoryTableScanExec =>
+      case p if p.children.isEmpty  => throw new Exception(s"${p}")
+      case _                        =>
+    }
     queryStage.operators.values.foreach(planOperator =>
       planOperator.operator match {
-        case p: ExchangeQueryStageExec =>
-          assert(p.children.isEmpty && p.canonicalized.children.length == 1)
-          val childSign = QueryStageSign(p.canonicalized.children.head)
-          if (!sign2QueryStages.contains(childSign.global))
-            println("debug")
-          addLink(
-            childSign.global,
-            sign.global,
-            if (p.isInstanceOf[ShuffleQueryStageExec]) DepType.Shuffle
-            else DepType.Broadcast,
-            isSubquery = false
-          )
-        case p: AdaptiveSparkPlanExec =>
+        case sq: SubqueryExec =>
+          assert(sq.child.isInstanceOf[AdaptiveSparkPlanExec])
+          val p = sq.child.asInstanceOf[AdaptiveSparkPlanExec]
           // match shadow verboseString for subqueries
           assert(p.isSubquery)
           val childSign = QueryStageSign(p.canonicalized)
@@ -229,11 +237,14 @@ case class RuntimePlan(
             DepType.Subquery,
             isSubquery = true
           )
-        case _: SubqueryExec          =>
-        case _: FileSourceScanExec    =>
-        case _: InMemoryTableScanExec =>
-        case p if p.children.isEmpty  => throw new Exception(s"${p}")
-        case _                        =>
+        case _: AdaptiveSparkPlanExec  =>
+        case _: ExchangeQueryStageExec =>
+        case _: FileSourceScanExec     =>
+        case _: InMemoryTableScanExec  =>
+        case p if p.children.isEmpty   => throw new Exception(s"${p}")
+        case p if p.children.head.isInstanceOf[AdaptiveSparkPlanExec] =>
+          throw new Exception(s"unmatched subquery type ${p.getClass.getName}")
+        case _ =>
       }
     )
   }
@@ -581,7 +592,7 @@ case class ExportRuntimeQueryStage(
         )
       val queryStage =
         PlanQueryStage(plan, TreeMap(operators.toArray: _*), links)
-//      println(queryStage.toString)
+      println(queryStage.toString)
       println(sign.id, sign.global.hashCode())
       runtimePlan.addQueryStage(sign, queryStage)
     }
