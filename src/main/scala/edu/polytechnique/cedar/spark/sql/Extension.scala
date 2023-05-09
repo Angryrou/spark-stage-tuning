@@ -124,6 +124,33 @@ case class PlanQueryStage(
   }
 }
 
+case class QueryStageSign(plan: SparkPlan) {
+  private val p = plan match {
+    case a: AQEShuffleReadExec => a.child
+    case p                     => p
+  }
+
+  // for QueryStages in the main query
+  private val verboseUp = {
+    var s = ""
+    p.foreachUp {
+      case _: AQEShuffleReadExec     =>
+      case _: ExchangeQueryStageExec =>
+      case pp                        => s += pp.verboseStringWithOperatorId()
+    }
+    s
+  }
+
+  // for QueryStages with subqueries
+  private val verboseString = p.verboseStringWithOperatorId()
+
+  def id: Int = p.id
+  def global: String = verboseUp
+  def subquery: String = verboseString
+
+  override def toString: String = (global + "||" + subquery)
+}
+
 case class QueryStageLink(fromQSId: Int, toQSId: Int, depType: DepType)
     extends MyUnit {
   private val json =
@@ -132,48 +159,76 @@ case class QueryStageLink(fromQSId: Int, toQSId: Int, depType: DepType)
     render(json)
   }
 }
-case class SignStrQueryStagesLinks(
-    fromQSSignStr: String,
-    toQSSignStr: String,
+case class SignQueryStageLink(
+    fromQSSign: String,
+    toQSSign: String,
+    depType: DepType
+)
+case class SubquerySignQueryStageLink(
+    fromSubQSSign: String,
+    toSubQSSign: String,
     depType: DepType
 )
 
 case class RuntimePlan(
-    signStr2QueryStages: mutable.LinkedHashMap[String, PlanQueryStage],
-    signStrQueryStagesLinks: mutable.ArrayBuffer[SignStrQueryStagesLinks]
+    sign2QueryStages: mutable.LinkedHashMap[String, PlanQueryStage],
+    subquerySignList: mutable.ArrayBuffer[String],
+    signLinks: mutable.ArrayBuffer[SignQueryStageLink],
+    subquerySignLinks: mutable.ArrayBuffer[SubquerySignQueryStageLink]
 ) extends MyUnit {
   var terminated: Boolean = false
-  def contains(signStr: String): Boolean = signStr2QueryStages.contains(signStr)
-  def addLink(signStr1: String, signStr2: String, depType: DepType): Unit = {
-    signStrQueryStagesLinks += SignStrQueryStagesLinks(
-      signStr1,
-      signStr2,
-      depType
-    )
+  def contains(signStr: String): Boolean = sign2QueryStages.contains(signStr)
+  def addLink(
+      signStr1: String,
+      signStr2: String,
+      depType: DepType,
+      isSubquery: Boolean
+  ): Unit = {
+    if (!isSubquery) {
+      signLinks += SignQueryStageLink(
+        signStr1,
+        signStr2,
+        depType
+      )
+    } else {
+      subquerySignLinks += SubquerySignQueryStageLink(
+        signStr1,
+        signStr2,
+        depType
+      )
+    }
+
   }
 
-  def addQueryStage(signStr: String, queryStage: PlanQueryStage): Unit = {
-    assert(!signStr2QueryStages.contains(signStr))
-    signStr2QueryStages += (signStr -> queryStage)
+  def addQueryStage(sign: QueryStageSign, queryStage: PlanQueryStage): Unit = {
+    assert(!sign2QueryStages.contains(sign.global))
+    sign2QueryStages += (sign.global -> queryStage)
+    subquerySignList.append(sign.subquery)
 
     queryStage.operators.values.foreach(planOperator =>
       planOperator.operator match {
         case p: ExchangeQueryStageExec =>
           assert(p.children.isEmpty && p.canonicalized.children.length == 1)
-          val childSignStr = F.getSignStr(p.canonicalized.children.head)
-          if (!signStr2QueryStages.contains(childSignStr))
+          val childSign = QueryStageSign(p.canonicalized.children.head)
+          if (!sign2QueryStages.contains(childSign.global))
             println("debug")
-
           addLink(
-            childSignStr,
-            signStr,
+            childSign.global,
+            sign.global,
             if (p.isInstanceOf[ShuffleQueryStageExec]) DepType.Shuffle
-            else DepType.Broadcast
+            else DepType.Broadcast,
+            isSubquery = false
           )
         case p: AdaptiveSparkPlanExec =>
+          // match shadow verboseString for subqueries
           assert(p.isSubquery)
-          val childSignStr = F.getSignStr(p.canonicalized)
-          addLink(childSignStr, signStr, DepType.Subquery)
+          val childSign = QueryStageSign(p.canonicalized)
+          addLink(
+            childSign.subquery,
+            sign.subquery,
+            DepType.Subquery,
+            isSubquery = true
+          )
         case _: SubqueryExec          =>
         case _: FileSourceScanExec    =>
         case _: InMemoryTableScanExec =>
@@ -184,18 +239,23 @@ case class RuntimePlan(
   }
   def terminate(): Unit = { terminated = true }
 
-  def unterminate(): Unit = { terminated = false } // for debug
-
   override def toJson: JValue = {
     if (terminated) {
-      val queryStages = signStr2QueryStages.values.zipWithIndex.map {
+      val queryStages = sign2QueryStages.values.zipWithIndex.map {
         case (queryStage, i) => (i.toString, queryStage.toJson)
       }
-      val signStr2QueryStageIds = signStr2QueryStages.keySet.zipWithIndex.toMap
-      val linksSeq = signStrQueryStagesLinks.map(x =>
+      val signStr2QueryStageIds = sign2QueryStages.keySet.zipWithIndex.toMap
+
+      val linksSeq = signLinks.map(x =>
         QueryStageLink(
-          signStr2QueryStageIds(x.fromQSSignStr),
-          signStr2QueryStageIds(x.toQSSignStr),
+          signStr2QueryStageIds(x.fromQSSign),
+          signStr2QueryStageIds(x.toQSSign),
+          x.depType
+        ).toJson
+      ) ++ subquerySignLinks.map(x =>
+        QueryStageLink(
+          subquerySignList.indexOf(x.fromSubQSSign),
+          subquerySignList.indexOf(x.toSubQSSign),
           x.depType
         ).toJson
       )
@@ -220,9 +280,10 @@ class RuntimePlans extends MyUnit {
       case Some(r) => r
       case None =>
         planMaps += (executionId -> RuntimePlan(
-          signStr2QueryStages = mutable.LinkedHashMap[String, PlanQueryStage](),
-          signStrQueryStagesLinks =
-            mutable.ArrayBuffer[SignStrQueryStagesLinks]()
+          sign2QueryStages = mutable.LinkedHashMap[String, PlanQueryStage](),
+          subquerySignList = mutable.ArrayBuffer[String](),
+          signLinks = mutable.ArrayBuffer[SignQueryStageLink](),
+          subquerySignLinks = mutable.ArrayBuffer[SubquerySignQueryStageLink]()
         ))
         planMaps(executionId)
     }
@@ -270,14 +331,6 @@ object F {
         p.broadcast.id
       case p => p.id
     }
-  }
-
-  def getSignStr(plan: SparkPlan): String = {
-    val p = plan match {
-      case a: AQEShuffleReadExec => a.child
-      case p                     => p
-    }
-    p.canonicalized.verboseStringWithOperatorId()
   }
 
   def showChildren(plan: SparkPlan): Unit = {
@@ -512,12 +565,12 @@ case class ExportRuntimeQueryStage(
     val executionId: Long = F.getExecutionId(spark).getOrElse(-1)
     assert(Status.isCompileTimeMap.contains(executionId))
     Status.isCompileTimeMap.update(executionId, false)
-    val curSignStr = F.getSignStr(plan.canonicalized)
+    val sign = QueryStageSign(plan.canonicalized)
     val runtimePlan = runtimePlans.getOrCreateRuntimePlan(executionId)
     hitNum += 1
     println("---", hitNum, "---")
 
-    if (runtimePlan.contains(curSignStr)) {
+    if (runtimePlan.contains(sign.global)) {
       // found reused plan; do nothing
     } else {
       val (operators, links) =
@@ -529,8 +582,8 @@ case class ExportRuntimeQueryStage(
       val queryStage =
         PlanQueryStage(plan, TreeMap(operators.toArray: _*), links)
 //      println(queryStage.toString)
-      println(curSignStr)
-      runtimePlan.addQueryStage(curSignStr, queryStage)
+      println(sign.id, sign.global.hashCode())
+      runtimePlan.addQueryStage(sign, queryStage)
     }
     plan
   }
