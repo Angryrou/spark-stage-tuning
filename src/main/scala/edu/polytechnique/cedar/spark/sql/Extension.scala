@@ -141,8 +141,8 @@ case class RuntimePlan(
   def addLink(canon1: SparkPlan, canon2: SparkPlan, depType: DepType): Unit = {
     canonQueryStagesLinks += CanonQueryStagesLinks(canon1, canon2, depType)
   }
-  
-  def addQueryStageBak(canon: SparkPlan, queryStage: PlanQueryStage): Unit = {
+
+  def addQueryStage(canon: SparkPlan, queryStage: PlanQueryStage): Unit = {
     canon2QueryStages += (canon -> queryStage)
     queryStage.operators.values.foreach(planOperator =>
       planOperator.operator match {
