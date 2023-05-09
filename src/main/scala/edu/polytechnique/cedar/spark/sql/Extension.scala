@@ -8,17 +8,29 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.{Expression, PlanExpression}
 import org.apache.spark.sql.catalyst.plans.logical.Statistics
 import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.execution.adaptive.{AQEShuffleReadExec, AdaptiveSparkPlanExec, BroadcastQueryStageExec, ExchangeQueryStageExec, ShuffleQueryStageExec, TableCacheQueryStageExec}
+import org.apache.spark.sql.execution.adaptive.{
+  AQEShuffleReadExec,
+  AdaptiveSparkPlanExec,
+  BroadcastQueryStageExec,
+  ExchangeQueryStageExec,
+  ShuffleQueryStageExec,
+  TableCacheQueryStageExec
+}
 import org.apache.spark.sql.execution.columnar.InMemoryTableScanExec
 import org.apache.spark.sql.execution.datasources.FilePartition
-import org.apache.spark.sql.execution.{FileSourceScanExec, ReusedSubqueryExec, SQLExecution, SparkPlan, SubqueryAdaptiveBroadcastExec, SubqueryBroadcastExec, SubqueryExec}
+import org.apache.spark.sql.execution.{
+  FileSourceScanExec,
+  SQLExecution,
+  SparkPlan,
+  SubqueryExec
+}
 import org.json4s
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{compact, pretty, render}
 import org.json4s.JValue
 
 import scala.collection.immutable.TreeMap
-import scala.collection.{breakOut, mutable}
+import scala.collection.mutable
 
 trait MyUnit {
   def toJson: json4s.JValue
@@ -120,76 +132,53 @@ case class QueryStageLink(fromQSId: Int, toQSId: Int, depType: DepType)
     render(json)
   }
 }
-case class CanonQueryStagesLinks(
-    fromQSCanon: SparkPlan,
-    toQSCanon: SparkPlan,
+case class SignStrQueryStagesLinks(
+    fromQSSignStr: String,
+    toQSSignStr: String,
     depType: DepType
 )
 
 case class RuntimePlan(
-    canon2QueryStages: mutable.LinkedHashMap[SparkPlan, PlanQueryStage],
-    canon2QueryStageIds: mutable.LinkedHashMap[SparkPlan, Int],
-    canonQueryStagesLinks: mutable.ArrayBuffer[CanonQueryStagesLinks]
+    signStr2QueryStages: mutable.LinkedHashMap[String, PlanQueryStage],
+    signStrQueryStagesLinks: mutable.ArrayBuffer[SignStrQueryStagesLinks]
 ) extends MyUnit {
   var terminated: Boolean = false
-  def contains(canon: SparkPlan): Boolean = canon2QueryStages.contains(canon)
-  def addQueryStageId(canon: SparkPlan, queryStageId: Int): Unit = {
-    if (!canon2QueryStageIds.contains(canon)) {
-      canon2QueryStageIds += (canon -> queryStageId)
-    }
-  }
-  def addLink(canon1: SparkPlan, canon2: SparkPlan, depType: DepType): Unit = {
-    canonQueryStagesLinks += CanonQueryStagesLinks(canon1, canon2, depType)
+  def contains(signStr: String): Boolean = signStr2QueryStages.contains(signStr)
+  def addLink(signStr1: String, signStr2: String, depType: DepType): Unit = {
+    signStrQueryStagesLinks += SignStrQueryStagesLinks(
+      signStr1,
+      signStr2,
+      depType
+    )
   }
 
-  def addQueryStage(canon: SparkPlan, queryStage: PlanQueryStage): Unit = {
-    canon2QueryStages += (canon -> queryStage)
+  def addQueryStage(signStr: String, queryStage: PlanQueryStage): Unit = {
+    assert(!signStr2QueryStages.contains(signStr))
+    signStr2QueryStages += (signStr -> queryStage)
+
     queryStage.operators.values.foreach(planOperator =>
       planOperator.operator match {
         case p: ExchangeQueryStageExec =>
           assert(p.children.isEmpty && p.canonicalized.children.length == 1)
-          val childCanon = p.canonicalized.children.head
-          val matchedChildCanon = {
-            if (canon2QueryStages.contains(childCanon)) {
-              childCanon
-            } else {
-              childCanon.logicalLink match {
-                case Some(lgPlan) =>
-                  val matchCanons: Seq[SparkPlan] = (for (
-                    observedCanon <- canon2QueryStages.keySet
-                    if observedCanon.logicalLink.isDefined && observedCanon.logicalLink.get == lgPlan
-                  ) yield observedCanon)(breakOut)
-                  assert(matchCanons.size == 1)
-                  matchCanons.head
-                case None =>
-                  val matchCanons: Seq[SparkPlan] = (for (
-                    canon <- canon2QueryStages.keySet
-                    if childCanon == canon.children.head
-                  ) yield canon)(breakOut)
-                  assert(matchCanons.size == 1)
-                  matchCanons.head
-              }
-            }
-          }
-          addQueryStageId(
-            matchedChildCanon,
-            F.getUniqueOperatorId(p)
-          ) // found the queryStageId for its precedent queryStage
+          val childSignStr = F.getSignStr(p.canonicalized.children.head)
+          if (!signStr2QueryStages.contains(childSignStr))
+            println("debug")
+
           addLink(
-            matchedChildCanon,
-            canon,
+            childSignStr,
+            signStr,
             if (p.isInstanceOf[ShuffleQueryStageExec]) DepType.Shuffle
             else DepType.Broadcast
           )
         case p: AdaptiveSparkPlanExec =>
           assert(p.isSubquery)
-          val childCanon = p.canonicalized
-          addLink(childCanon, canon, DepType.Subquery)
-        case p: SubqueryExec =>
-        case _: FileSourceScanExec =>
+          val childSignStr = F.getSignStr(p.canonicalized)
+          addLink(childSignStr, signStr, DepType.Subquery)
+        case _: SubqueryExec          =>
+        case _: FileSourceScanExec    =>
         case _: InMemoryTableScanExec =>
-        case p if p.children.isEmpty => throw new Exception(s"${p}")
-        case _ =>
+        case p if p.children.isEmpty  => throw new Exception(s"${p}")
+        case _                        =>
       }
     )
   }
@@ -199,35 +188,17 @@ case class RuntimePlan(
 
   override def toJson: JValue = {
     if (terminated) {
-      var nextNonIdentifiedQueryStageId = canon2QueryStageIds.values.max
-      assert(canon2QueryStageIds.keySet.subsetOf(canon2QueryStages.keySet))
-      val id2QueryStage = canon2QueryStages.map { case (canon, queryStage) =>
-        val queryStageId = canon2QueryStageIds.get(canon) match {
-          case Some(id) => id
-          case None =>
-            nextNonIdentifiedQueryStageId += 1
-            canon2QueryStageIds += (canon -> nextNonIdentifiedQueryStageId)
-            nextNonIdentifiedQueryStageId
-        }
-        (queryStageId, queryStage)
+      val queryStages = signStr2QueryStages.values.zipWithIndex.map {
+        case (queryStage, i) => (i.toString, queryStage.toJson)
       }
-      val queryStages = id2QueryStage.map(x => (x._1.toString, x._2.toJson))
-      val linksSeq = canonQueryStagesLinks.map(x => {
-        val fromQSCanon = x.fromQSCanon match {
-          case z if canon2QueryStageIds.contains(z) => z
-          case z =>
-            // for subquery matching
-            val canonCandidates = canon2QueryStageIds.keySet
-              .filter(_.verboseStringWithOperatorId() == z.verboseStringWithOperatorId())
-            assert(canonCandidates.size == 1)
-            canonCandidates.head
-        }
+      val signStr2QueryStageIds = signStr2QueryStages.keySet.zipWithIndex.toMap
+      val linksSeq = signStrQueryStagesLinks.map(x =>
         QueryStageLink(
-          canon2QueryStageIds(fromQSCanon),
-          canon2QueryStageIds(x.toQSCanon),
+          signStr2QueryStageIds(x.fromQSSignStr),
+          signStr2QueryStageIds(x.toQSSignStr),
           x.depType
         ).toJson
-      })
+      )
       val json =
         ("queryStages" -> queryStages) ~ ("links" -> linksSeq)
       render(json)
@@ -249,10 +220,9 @@ class RuntimePlans extends MyUnit {
       case Some(r) => r
       case None =>
         planMaps += (executionId -> RuntimePlan(
-          canon2QueryStages =
-            mutable.LinkedHashMap[SparkPlan, PlanQueryStage](),
-          canon2QueryStageIds = mutable.LinkedHashMap[SparkPlan, Int](),
-          canonQueryStagesLinks = mutable.ArrayBuffer[CanonQueryStagesLinks]()
+          signStr2QueryStages = mutable.LinkedHashMap[String, PlanQueryStage](),
+          signStrQueryStagesLinks =
+            mutable.ArrayBuffer[SignStrQueryStagesLinks]()
         ))
         planMaps(executionId)
     }
@@ -302,6 +272,14 @@ object F {
     }
   }
 
+  def getSignStr(plan: SparkPlan): String = {
+    val p = plan match {
+      case a: AQEShuffleReadExec => a.child
+      case p                     => p
+    }
+    p.canonicalized.verboseStringWithOperatorId()
+  }
+
   def showChildren(plan: SparkPlan): Unit = {
     println(plan.nodeName, plan.id)
     plan.children.foreach(showChildren)
@@ -309,26 +287,23 @@ object F {
 
   def traversePlan(
       plan: SparkPlan,
-      uniqueOperatorIdMap: mutable.TreeMap[Int, Int],
+      uniqueOperatorIdSet: mutable.Set[Int],
       operators: mutable.TreeMap[Int, PlanOperator],
       links: mutable.ArrayBuffer[OperatorLink],
       rootId: Int,
       mylog: Option[Logger] = None
   ): Unit = {
 
-//    val uniqueOperatorId = F.getUniqueOperatorId(plan)
-//    val operatorId = uniqueOperatorIdMap.get(uniqueOperatorId) match {
-//      case Some(id) => id
-//      case None     => plan.id
-//    }
-    val uniqueOperatorId = F.getUniqueOperatorId(plan)
-    val operatorId = uniqueOperatorId
+    // use the unique operator Id to
+    // (1) identify resued operators and
+    // (2) avoid id conflicts for QueryStage with subqueries
+    val operatorId = F.getUniqueOperatorId(plan)
     if (!operators.contains(operatorId)) {
       operators += (operatorId -> PlanOperator(operatorId, plan))
       plan.children.foreach(
         traversePlan(
           _,
-          uniqueOperatorIdMap,
+          uniqueOperatorIdSet,
           operators,
           links,
           operatorId,
@@ -338,14 +313,14 @@ object F {
       plan.subqueries.foreach(
         traversePlan(
           _,
-          uniqueOperatorIdMap,
+          uniqueOperatorIdSet,
           operators,
           links,
           operatorId,
           mylog
         )
       )
-      uniqueOperatorIdMap += (uniqueOperatorId -> operatorId)
+      uniqueOperatorIdSet.add(operatorId)
     }
     if (rootId != -1) {
       links.append(OperatorLink(operatorId, rootId))
@@ -358,7 +333,7 @@ object F {
 
   def getOperatorsAndLinks(
       plan: SparkPlan,
-      uniqueOperatorIdMap: mutable.TreeMap[Int, Int],
+      uniqueOperatorIdSet: mutable.Set[Int],
       mylog: Logger
   ): (mutable.TreeMap[Int, PlanOperator], mutable.ArrayBuffer[OperatorLink]) = {
     mylog.debug("-- traverse plan --")
@@ -366,7 +341,7 @@ object F {
     val links = mutable.ArrayBuffer[OperatorLink]()
     F.traversePlan(
       plan,
-      uniqueOperatorIdMap,
+      uniqueOperatorIdSet,
       operators,
       links,
       -1,
@@ -486,7 +461,7 @@ case class ExportInitialPlan(
     initialPlans: InitialPlans
 ) extends Rule[SparkPlan] {
 
-  val uniqueOperatorIdMap: mutable.TreeMap[Int, Int] = mutable.TreeMap()
+  val uniqueOperatorIdSet: mutable.Set[Int] = mutable.Set()
   val mylog: Logger = Logger.getLogger(getClass.getName)
   mylog.setLevel(Level.ERROR)
 
@@ -503,7 +478,7 @@ case class ExportInitialPlan(
       val (operators, links) =
         F.getOperatorsAndLinks(
           plan,
-          uniqueOperatorIdMap,
+          uniqueOperatorIdSet,
           mylog
         )
       val initialPlan = InitialPlan(
@@ -527,7 +502,7 @@ case class ExportRuntimeQueryStage(
     runtimePlans: RuntimePlans
 ) extends Rule[SparkPlan] {
 
-  val uniqueOperatorIdMap: mutable.TreeMap[Int, Int] = mutable.TreeMap()
+  val uniqueOperatorIdSet: mutable.Set[Int] = mutable.Set()
   val mylog: Logger = Logger.getLogger(getClass.getName)
   mylog.setLevel(Level.ERROR)
   var hitNum = 0
@@ -537,26 +512,25 @@ case class ExportRuntimeQueryStage(
     val executionId: Long = F.getExecutionId(spark).getOrElse(-1)
     assert(Status.isCompileTimeMap.contains(executionId))
     Status.isCompileTimeMap.update(executionId, false)
-
-    val curCanon = plan.canonicalized
+    val curSignStr = F.getSignStr(plan.canonicalized)
     val runtimePlan = runtimePlans.getOrCreateRuntimePlan(executionId)
     hitNum += 1
     println("---", hitNum, "---")
 
-    if (runtimePlan.contains(curCanon)) {
+    if (runtimePlan.contains(curSignStr)) {
       // found reused plan; do nothing
     } else {
       val (operators, links) =
         F.getOperatorsAndLinks(
           plan,
-          uniqueOperatorIdMap,
+          uniqueOperatorIdSet,
           mylog
         )
       val queryStage =
         PlanQueryStage(plan, TreeMap(operators.toArray: _*), links)
-      println(queryStage.toString)
-      runtimePlan.addQueryStage(curCanon, queryStage)
-//      runtimePlan.analyzeQueryStage(curCanon, queryStage)
+//      println(queryStage.toString)
+      println(curSignStr)
+      runtimePlan.addQueryStage(curSignStr, queryStage)
     }
     plan
   }
