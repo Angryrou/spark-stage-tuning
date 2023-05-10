@@ -208,7 +208,7 @@ case class RuntimePlan(
         assert(p.children.isEmpty && p.canonicalized.children.length == 1)
         val childSign = QueryStageSign(p.canonicalized.children.head)
         if (!sign2QueryStages.contains(childSign.global))
-          println("debug")
+          throw new Exception("sth wrong")
         addLink(
           childSign.global,
           sign.global,
@@ -592,7 +592,7 @@ case class ExportRuntimeQueryStage(
         )
       val queryStage =
         PlanQueryStage(plan, TreeMap(operators.toArray: _*), links)
-      println(queryStage.toString)
+//      println(queryStage.toString)
       println(sign.id, sign.global.hashCode())
       runtimePlan.addQueryStage(sign, queryStage)
     }
