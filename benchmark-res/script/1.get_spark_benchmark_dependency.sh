@@ -1,7 +1,7 @@
 git clone --depth 1 https://github.com/Angryrou/spark-sql-perf
 cd spark-sql-perf
 sbt package
-cp target/scala-2.12/spark-sql-perf_2.12-0.5.1-SNAPSHOT.jar ../../resources
+cp target/scala-2.12/spark-sql-perf_2.12-0.5.1-SNAPSHOT.jar ../../libs
 echo "done!"
 
 cd ..
