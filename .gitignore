@@ -16,3 +16,5 @@ default.properties
 lib
 metastore_db
 spark-warehouse
+*/.DS_Store
+benchmark-res/dataset-gen
