@@ -12,7 +12,7 @@ do
   jpath=/opt/hex_users/$USER/spark-3.2.1-hadoop3.3.0/jdk1.8
   lpath=/opt/hex_users/$USER/chenghao/spark-stage-tuning/src/main/resources/log4j2.properties
 
-  name=TPCH100_PER_BM_${qsign}_${s1}_${s2}_${s3}_${s4}
+  name=TPCH100_PER_BM_${s1}_${s2}_${s3}_${s4}_${qsign}
   ~/spark/bin/spark-submit \
   --class edu.polytechnique.cedar.spark.sql.benchmark.RunTemplateQuery \
   --name ${name} \
