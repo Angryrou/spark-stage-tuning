@@ -1,6 +1,12 @@
 package edu.polytechnique.cedar.spark.benchmark
 
+import edu.polytechnique.cedar.spark.listeners.MySparkListener
+import edu.polytechnique.cedar.spark.sql.AggMetrics
 import org.apache.spark.sql.SparkSession
+import org.json4s.DefaultFormats
+import org.json4s.jackson.Serialization.writePretty
+
+import java.io.PrintWriter
 case class RunTemplateQueryWithoutExtensionConfig(
     benchmarkName: String = null, // TPCH / TPCDS
     scaleFactor: String = null, // 1
@@ -89,6 +95,9 @@ object RunTemplateQueryWithoutExtension {
         .getOrCreate()
     }
 
+    val aggMetrics = AggMetrics()
+    spark.sparkContext.addSparkListener(MySparkListener(aggMetrics))
+
     val databaseName =
       if (config.databaseName == null)
         s"${config.benchmarkName.toLowerCase}_${config.scaleFactor}"
@@ -111,5 +120,12 @@ object RunTemplateQueryWithoutExtension {
     println(queryContent)
     spark.sql(queryContent).collect()
     spark.close()
+    println("---- Query Time Metric ----")
+    val queryLatency =
+      writePretty(aggMetrics.initialPlanTimeMetric)(DefaultFormats)
+    val writer = new PrintWriter(s"./${spark.sparkContext.appName}.json")
+    writer.println(queryLatency)
+    writer.close()
+
   }
 }
