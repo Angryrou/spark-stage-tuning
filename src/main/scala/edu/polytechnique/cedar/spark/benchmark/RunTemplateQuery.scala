@@ -1,7 +1,11 @@
 package edu.polytechnique.cedar.spark.benchmark
 
 import edu.polytechnique.cedar.spark.listeners.MySparkListener
-import edu.polytechnique.cedar.spark.sql.{AggMetrics, ExportInitialPlan, ExportRuntimeQueryStage}
+import edu.polytechnique.cedar.spark.sql.{
+  AggMetrics,
+  ExportInitialPlan,
+  ExportRuntimeQueryStage
+}
 import org.apache.spark.sql.SparkSession
 import org.json4s.DefaultFormats
 import org.json4s.jackson.Serialization.writePretty

@@ -18,10 +18,13 @@ import org.apache.spark.sql.execution.adaptive.{
 }
 import org.apache.spark.sql.execution.columnar.InMemoryTableScanExec
 import org.apache.spark.sql.execution.datasources.FilePartition
+import org.apache.spark.sql.execution.exchange.ReusedExchangeExec
 import org.apache.spark.sql.execution.{
   FileSourceScanExec,
+  ReusedSubqueryExec,
   SQLExecution,
   SparkPlan,
+  SubqueryBroadcastExec,
   SubqueryExec
 }
 import org.json4s
@@ -199,6 +202,12 @@ case class RuntimePlan(
     }
   }
 
+  def addQueryStageLink(
+      queryStageFrom: PlanQueryStage,
+      queryStageTo: PlanQueryStage,
+      depType: DepType
+  ): Unit = {}
+
   def addQueryStage(sign: QueryStageSign, queryStage: PlanQueryStage): Unit = {
     assert(!sign2QueryStages.contains(sign.global))
     sign2QueryStages += (sign.global -> queryStage)
@@ -207,8 +216,10 @@ case class RuntimePlan(
       case p: ExchangeQueryStageExec =>
         assert(p.children.isEmpty && p.canonicalized.children.length == 1)
         val childSign = QueryStageSign(p.canonicalized.children.head)
-        if (!sign2QueryStages.contains(childSign.global))
-          throw new Exception("sth wrong")
+        if (!sign2QueryStages.contains(childSign.global)) {
+          println("ATTENTION!!! sth wrong")
+//          throw new Exception("sth wrong")
+        }
         addLink(
           childSign.global,
           sign.global,
@@ -235,6 +246,18 @@ case class RuntimePlan(
             childSign.subquery,
             sign.subquery,
             DepType.Subquery,
+            isSubquery = true
+          )
+        case sq: SubqueryBroadcastExec =>
+          assert(sq.child.isInstanceOf[AdaptiveSparkPlanExec])
+          val p = sq.child.asInstanceOf[AdaptiveSparkPlanExec]
+          // match shadow verboseString for subqueries
+          assert(p.isSubquery)
+          val childSign = QueryStageSign(p.canonicalized)
+          addLink(
+            childSign.subquery,
+            sign.subquery,
+            DepType.SubqueryBroadcast,
             isSubquery = true
           )
         case _: AdaptiveSparkPlanExec  =>
@@ -320,7 +343,7 @@ object InType extends Enumeration {
 
 object DepType extends Enumeration {
   type DepType = Value
-  val Shuffle, Broadcast, Subquery = Value
+  val Shuffle, Broadcast, Subquery, SubqueryBroadcast = Value
 
   override def values: sql.DepType.ValueSet = super.values
 }
@@ -340,6 +363,14 @@ object F {
         p.shuffle.id
       case p: BroadcastQueryStageExec =>
         p.broadcast.id
+      case p: SubqueryBroadcastExec =>
+//        p.name.split("#").last.toInt
+        p.id
+      case p: ReusedSubqueryExec =>
+        p.child.id
+//        p.name.split("#").last.toInt
+      case p: ReusedExchangeExec =>
+        p.child.id
       case p => p.id
     }
   }
@@ -351,7 +382,7 @@ object F {
 
   def traversePlan(
       plan: SparkPlan,
-      uniqueOperatorIdSet: mutable.Set[Int],
+      uniqueOperatorIdMap: mutable.TreeMap[Int, PlanOperator],
       operators: mutable.TreeMap[Int, PlanOperator],
       links: mutable.ArrayBuffer[OperatorLink],
       rootId: Int,
@@ -359,15 +390,19 @@ object F {
   ): Unit = {
 
     // use the unique operator Id to
-    // (1) identify resued operators and
+    // (1) identify reused operators and
     // (2) avoid id conflicts for QueryStage with subqueries
     val operatorId = F.getUniqueOperatorId(plan)
     if (!operators.contains(operatorId)) {
-      operators += (operatorId -> PlanOperator(operatorId, plan))
+      val operator = uniqueOperatorIdMap.getOrElseUpdate(
+        operatorId,
+        PlanOperator(operatorId, plan)
+      )
+      operators += (operatorId -> operator)
       plan.children.foreach(
         traversePlan(
           _,
-          uniqueOperatorIdSet,
+          uniqueOperatorIdMap,
           operators,
           links,
           operatorId,
@@ -377,14 +412,13 @@ object F {
       plan.subqueries.foreach(
         traversePlan(
           _,
-          uniqueOperatorIdSet,
+          uniqueOperatorIdMap,
           operators,
           links,
           operatorId,
           mylog
         )
       )
-      uniqueOperatorIdSet.add(operatorId)
     }
     if (rootId != -1) {
       links.append(OperatorLink(operatorId, rootId))
@@ -397,7 +431,7 @@ object F {
 
   def getOperatorsAndLinks(
       plan: SparkPlan,
-      uniqueOperatorIdSet: mutable.Set[Int],
+      uniqueOperatorIdMap: mutable.TreeMap[Int, PlanOperator],
       mylog: Logger
   ): (mutable.TreeMap[Int, PlanOperator], mutable.ArrayBuffer[OperatorLink]) = {
     mylog.debug("-- traverse plan --")
@@ -405,7 +439,7 @@ object F {
     val links = mutable.ArrayBuffer[OperatorLink]()
     F.traversePlan(
       plan,
-      uniqueOperatorIdSet,
+      uniqueOperatorIdMap,
       operators,
       links,
       -1,
@@ -525,7 +559,8 @@ case class ExportInitialPlan(
     initialPlans: InitialPlans
 ) extends Rule[SparkPlan] {
 
-  val uniqueOperatorIdSet: mutable.Set[Int] = mutable.Set()
+  val uniqueOperatorIdMap: mutable.TreeMap[Int, PlanOperator] =
+    mutable.TreeMap[Int, PlanOperator]()
   val mylog: Logger = Logger.getLogger(getClass.getName)
   mylog.setLevel(Level.ERROR)
 
@@ -542,7 +577,7 @@ case class ExportInitialPlan(
       val (operators, links) =
         F.getOperatorsAndLinks(
           plan,
-          uniqueOperatorIdSet,
+          uniqueOperatorIdMap,
           mylog
         )
       val initialPlan = InitialPlan(
@@ -566,7 +601,8 @@ case class ExportRuntimeQueryStage(
     runtimePlans: RuntimePlans
 ) extends Rule[SparkPlan] {
 
-  val uniqueOperatorIdSet: mutable.Set[Int] = mutable.Set()
+  val uniqueOperatorIdMap: mutable.TreeMap[Int, PlanOperator] =
+    mutable.TreeMap[Int, PlanOperator]()
   val mylog: Logger = Logger.getLogger(getClass.getName)
   mylog.setLevel(Level.ERROR)
   var hitNum = 0
@@ -587,12 +623,13 @@ case class ExportRuntimeQueryStage(
       val (operators, links) =
         F.getOperatorsAndLinks(
           plan,
-          uniqueOperatorIdSet,
+          uniqueOperatorIdMap,
           mylog
         )
       val queryStage =
         PlanQueryStage(plan, TreeMap(operators.toArray: _*), links)
-//      println(queryStage.toString)
+
+      println(queryStage.toString)
       println(sign.id, sign.global.hashCode())
       runtimePlan.addQueryStage(sign, queryStage)
     }
