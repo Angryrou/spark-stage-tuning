@@ -1,24 +1,11 @@
 package edu.polytechnique.cedar.spark.benchmark
 
+import edu.polytechnique.cedar.spark.benchmark.config.RunTemplateQueryConfig
 import edu.polytechnique.cedar.spark.listeners.MySparkListener
-import edu.polytechnique.cedar.spark.sql.{
-  AggMetrics,
-  ExportInitialPlan,
-  ExportRuntimeQueryStage
-}
+import edu.polytechnique.cedar.spark.sql.{AggMetrics, ExportInitialPlan, ExportRuntimeQueryStage}
 import org.apache.spark.sql.SparkSession
 import org.json4s.DefaultFormats
 import org.json4s.jackson.Serialization.writePretty
-
-case class RunTemplateQueryConfig(
-    benchmarkName: String = null, // TPCH / TPCDS
-    scaleFactor: String = null, // 1
-    queryLocationHeader: String = null,
-    databaseName: String = null,
-    queryName: String = null,
-    templateName: String = null,
-    localDebug: Boolean = false
-)
 
 object RunTemplateQuery {
 

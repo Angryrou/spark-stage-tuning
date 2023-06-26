@@ -3,16 +3,8 @@ package edu.polytechnique.cedar.spark.benchmark
 import com.databricks.spark.sql.perf.tpcds.TPCDSTables
 import com.databricks.spark.sql.perf.tpch.TPCHTables
 import com.databricks.spark.sql.perf.Tables
+import edu.polytechnique.cedar.spark.benchmark.config.GenBenchmarkConfig
 import org.apache.spark.sql.SparkSession
-
-case class GenBenchmarkConfig(
-    benchmarkName: String = null, // TPCH / TPCDS
-    dataGenDir: String = "/mnt/disk7/chenghao-dataset",
-    scaleFactor: String = null, // 1
-    locationHeader: String = "hdfs://node13-opa:8020/user/spark_benchmark",
-    overwrite: Boolean = false,
-    databaseName: String = null
-)
 
 object SetBenchmark {
 

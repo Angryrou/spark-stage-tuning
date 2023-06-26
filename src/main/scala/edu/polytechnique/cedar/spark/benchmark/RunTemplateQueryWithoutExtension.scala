@@ -1,5 +1,6 @@
 package edu.polytechnique.cedar.spark.benchmark
 
+import edu.polytechnique.cedar.spark.benchmark.config.RunTemplateQueryConfig
 import edu.polytechnique.cedar.spark.listeners.MySparkListener
 import edu.polytechnique.cedar.spark.sql.AggMetrics
 import org.apache.spark.sql.SparkSession
@@ -7,21 +8,11 @@ import org.json4s.DefaultFormats
 import org.json4s.jackson.Serialization.writePretty
 
 import java.io.PrintWriter
-case class RunTemplateQueryWithoutExtensionConfig(
-    benchmarkName: String = null, // TPCH / TPCDS
-    scaleFactor: String = null, // 1
-    queryLocationHeader: String = null,
-    databaseName: String = null,
-    queryName: String = null,
-    templateName: String = null,
-    localDebug: Boolean = false
-)
-
 object RunTemplateQueryWithoutExtension {
 
   def main(args: Array[String]): Unit = {
     val parser =
-      new scopt.OptionParser[RunTemplateQueryWithoutExtensionConfig](
+      new scopt.OptionParser[RunTemplateQueryConfig](
         "Run-Benchmark-Query"
       ) {
         opt[String]('b', "benchmark")
@@ -55,7 +46,7 @@ object RunTemplateQueryWithoutExtension {
           .text("prints this usage text")
       }
 
-    parser.parse(args, RunTemplateQueryWithoutExtensionConfig()) match {
+    parser.parse(args, RunTemplateQueryConfig()) match {
       case Some(config) =>
         run(config)
       case None =>
@@ -63,7 +54,7 @@ object RunTemplateQueryWithoutExtension {
     }
   }
 
-  def run(config: RunTemplateQueryWithoutExtensionConfig): Unit = {
+  def run(config: RunTemplateQueryConfig): Unit = {
     assert(config.benchmarkName == "TPCH" || config.benchmarkName == "TPCDS")
     val spark = if (config.localDebug) {
       SparkSession
