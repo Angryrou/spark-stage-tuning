@@ -18,3 +18,5 @@ metastore_db
 spark-warehouse
 */.DS_Store
 benchmark-res/dataset-gen
+.DS_Store
+outs

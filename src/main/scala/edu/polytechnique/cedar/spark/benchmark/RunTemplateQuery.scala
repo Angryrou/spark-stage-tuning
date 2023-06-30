@@ -1,8 +1,9 @@
 package edu.polytechnique.cedar.spark.benchmark
 
 import edu.polytechnique.cedar.spark.benchmark.config.RunTemplateQueryConfig
-import edu.polytechnique.cedar.spark.listeners.MySparkListener
-import edu.polytechnique.cedar.spark.sql.{AggMetrics, ExportInitialPlan, ExportRuntimeQueryStage}
+import edu.polytechnique.cedar.spark.listeners.UDAOMetricListener
+import edu.polytechnique.cedar.spark.sql.component.AggMetrics
+import edu.polytechnique.cedar.spark.sql.{ExportInitialPlan, ExportRuntimeQueryStage}
 import org.apache.spark.sql.SparkSession
 import org.json4s.DefaultFormats
 import org.json4s.jackson.Serialization.writePretty
@@ -100,7 +101,7 @@ object RunTemplateQuery {
         .getOrCreate()
     }
 
-    spark.sparkContext.addSparkListener(MySparkListener(aggMetrics))
+    spark.sparkContext.addSparkListener(UDAOMetricListener(aggMetrics))
     val databaseName =
       if (config.databaseName == null)
         s"${config.benchmarkName.toLowerCase}_${config.scaleFactor}"

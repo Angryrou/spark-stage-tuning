@@ -1,20 +1,23 @@
 package edu.polytechnique.cedar.spark.benchmark
 
 import edu.polytechnique.cedar.spark.benchmark.config.RunTemplateQueryConfig
-import edu.polytechnique.cedar.spark.listeners.UDAOMetricListener
+import edu.polytechnique.cedar.spark.listeners.{
+  UDAOMetricListener,
+  UDAOQueryPlanListener
+}
 import edu.polytechnique.cedar.spark.sql.component.AggMetrics
+import edu.polytechnique.cedar.spark.sql.{
+  ExportInitialPlan,
+  ExportRuntimeQueryStage
+}
 import org.apache.spark.sql.SparkSession
-import org.json4s.DefaultFormats
-import org.json4s.jackson.Serialization.writePretty
-
 import java.io.PrintWriter
-object RunTemplateQueryWithoutExtension {
+
+object RunTemplateQueryWithLogicalPlanExportion {
 
   def main(args: Array[String]): Unit = {
     val parser =
-      new scopt.OptionParser[RunTemplateQueryConfig](
-        "Run-Benchmark-Query"
-      ) {
+      new scopt.OptionParser[RunTemplateQueryConfig]("Run-Benchmark-Query") {
         opt[String]('b', "benchmark")
           .action { (x, c) => c.copy(benchmarkName = x) }
           .text("the name of the benchmark to run")
@@ -56,9 +59,13 @@ object RunTemplateQueryWithoutExtension {
 
   def run(config: RunTemplateQueryConfig): Unit = {
     assert(config.benchmarkName == "TPCH" || config.benchmarkName == "TPCDS")
+    val aggMetrics = AggMetrics()
     val spark = if (config.localDebug) {
       SparkSession
         .builder()
+        .appName(
+          s"${config.benchmarkName}_${config.templateName}-${config.queryName}"
+        )
         .config("spark.master", "local[*]")
         .config("spark.default.parallelism", "40")
         .config("spark.reducer.maxSizeInFlight", "48m")
@@ -67,7 +74,7 @@ object RunTemplateQueryWithoutExtension {
         .config("spark.memory.fraction", "0.6")
         .config("spark.sql.inMemoryColumnarStorage.batchSize", "10000")
         .config("spark.sql.files.maxPartitionBytes", "128MB")
-        .config("spark.sql.autoBroadcastJoinThreshold", "10MB")
+        .config("spark.sql.autoBroadcastJoinThreshold", "1MB")
         .config("spark.sql.shuffle.partitions", "200")
         .config("spark.sql.adaptive.enable", "true")
         .config("spark.sql.parquet.compression.codec", "snappy")
@@ -77,18 +84,34 @@ object RunTemplateQueryWithoutExtension {
         )
         .config("spark.kryoserializer.buffer.max", "512m")
         .config("spark.yarn.historyServer.address", "http://localhost:18088")
+//        .withExtensions { extensions =>
+//          extensions.injectQueryStagePrepRule(
+//            ExportLogicalPlan
+//            ExportInitialPlan(_, aggMetrics.initialPlans)
+//          )
+//          extensions.injectQueryStageOptimizerRule(
+//            ExportRuntimeQueryStage(_, aggMetrics.runtimePlans)
+//          )
+//        }
         .enableHiveSupport()
         .getOrCreate()
     } else {
       SparkSession
         .builder()
+        .withExtensions { extensions =>
+          extensions.injectQueryStagePrepRule(
+            ExportInitialPlan(_, aggMetrics.initialPlans)
+          )
+          extensions.injectQueryStageOptimizerRule(
+            ExportRuntimeQueryStage(_, aggMetrics.runtimePlans)
+          )
+        }
         .enableHiveSupport()
         .getOrCreate()
     }
 
-    val aggMetrics = AggMetrics()
     spark.sparkContext.addSparkListener(UDAOMetricListener(aggMetrics))
-
+    spark.listenerManager.register(UDAOQueryPlanListener(aggMetrics))
     val databaseName =
       if (config.databaseName == null)
         s"${config.benchmarkName.toLowerCase}_${config.scaleFactor}"
@@ -107,16 +130,33 @@ object RunTemplateQueryWithoutExtension {
 
     println(spark.sparkContext.applicationId)
     println(spark.sparkContext.getConf.get("spark.yarn.historyServer.address"))
+
     println(s"run ${queryLocationHeader}/${tid}/${tid}-${qid}.sql")
     println(queryContent)
     spark.sql(queryContent).collect()
+
+//    aggMetrics.runtimePlans.terminate()
     spark.close()
-    println("---- Query Time Metric ----")
-    val queryLatency =
-      writePretty(aggMetrics.initialPlanTimeMetric)(DefaultFormats)
-    val writer = new PrintWriter(s"./${spark.sparkContext.appName}.json")
-    writer.println(queryLatency)
+
+    val writer = new PrintWriter(s"./outs/${spark.sparkContext.appName}.json")
+    val jsonString = aggMetrics.logicalPlanMetricsMap("collect").toString()
+    println(jsonString)
+    writer.write(jsonString)
     writer.close()
+//    println("---- Initial Plan ----")
+//    println(aggMetrics.initialPlans.toString)
+//    println("---- Runtime Plan ----")
+//    println(aggMetrics.runtimePlans.toString)
+//    println("---- Query Time Metric ----")
+//    println(s"${writePretty(aggMetrics.initialPlanTimeMetric)(DefaultFormats)}")
+//    println("---- Run Time Metrics - stageSubmittedTime")
+//    println(s"${writePretty(aggMetrics.stageSubmittedTime)(DefaultFormats)}")
+//    println("---- Run Time Metrics - stageCompletedTime")
+//    println(s"${writePretty(aggMetrics.stageCompletedTime)(DefaultFormats)}")
+//    println("---- Run Time Metrics - stageFirstTaskTime")
+//    println(s"${writePretty(aggMetrics.stageFirstTaskTime)(DefaultFormats)}")
+//    println("---- Run Time Metrics - stageTotalTaskTime")
+//    println(s"${writePretty(aggMetrics.stageTotalTaskTime)(DefaultFormats)}")
 
   }
 }

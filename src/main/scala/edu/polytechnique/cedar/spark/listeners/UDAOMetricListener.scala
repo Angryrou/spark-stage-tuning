@@ -1,6 +1,6 @@
 package edu.polytechnique.cedar.spark.listeners
 
-import edu.polytechnique.cedar.spark.sql.AggMetrics
+import edu.polytechnique.cedar.spark.sql.component.AggMetrics
 import org.apache.spark.scheduler.{
   SparkListener,
   SparkListenerEvent,
@@ -13,7 +13,7 @@ import org.apache.spark.sql.execution.ui.{
 }
 import org.apache.spark.Success
 
-case class MySparkListener(aggMetrics: AggMetrics) extends SparkListener {
+case class UDAOMetricListener(aggMetrics: AggMetrics) extends SparkListener {
 
   override def onTaskEnd(taskEnd: SparkListenerTaskEnd): Unit = {
     if (aggMetrics.successFlag) {
