@@ -2,7 +2,7 @@ package edu.polytechnique.cedar.spark.benchmark
 
 import edu.polytechnique.cedar.spark.benchmark.config.RunTemplateQueryConfig
 import edu.polytechnique.cedar.spark.listeners.UDAOQueryPlanListener
-import edu.polytechnique.cedar.spark.sql.component.InitialLQPCollector
+import edu.polytechnique.cedar.spark.sql.component.collectors.InitialLQPCollector
 import org.apache.spark.sql.SparkSession
 import java.io.PrintWriter
 

@@ -1,8 +1,8 @@
 package edu.polytechnique.cedar.spark.listeners
 
+import edu.polytechnique.cedar.spark.sql.component.collectors.InitialLQPCollector
 import edu.polytechnique.cedar.spark.sql.component.{
   F,
-  InitialLQPCollector,
   InputMetaInfo,
   Link,
   LinkType,
