@@ -1,5 +1,6 @@
-package edu.polytechnique.cedar.spark.sql.component
+package edu.polytechnique.cedar.spark.sql.component.collectors
 
+import edu.polytechnique.cedar.spark.sql.component.{InputMetaInfo, LogicalPlanMetrics, MyUnit}
 import org.json4s.JValue
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.render
