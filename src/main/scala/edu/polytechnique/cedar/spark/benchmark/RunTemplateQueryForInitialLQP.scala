@@ -1,19 +1,12 @@
 package edu.polytechnique.cedar.spark.benchmark
 
 import edu.polytechnique.cedar.spark.benchmark.config.RunTemplateQueryConfig
-import edu.polytechnique.cedar.spark.listeners.{
-  UDAOMetricListener,
-  UDAOQueryPlanListener
-}
+import edu.polytechnique.cedar.spark.listeners.UDAOQueryPlanListener
 import edu.polytechnique.cedar.spark.sql.component.AggMetrics
-import edu.polytechnique.cedar.spark.sql.{
-  ExportInitialPlan,
-  ExportRuntimeQueryStage
-}
 import org.apache.spark.sql.SparkSession
 import java.io.PrintWriter
 
-object RunTemplateQueryWithLogicalPlanExportion {
+object RunTemplateQueryForInitialLQP {
 
   def main(args: Array[String]): Unit = {
     val parser =
@@ -84,33 +77,15 @@ object RunTemplateQueryWithLogicalPlanExportion {
         )
         .config("spark.kryoserializer.buffer.max", "512m")
         .config("spark.yarn.historyServer.address", "http://localhost:18088")
-//        .withExtensions { extensions =>
-//          extensions.injectQueryStagePrepRule(
-//            ExportLogicalPlan
-//            ExportInitialPlan(_, aggMetrics.initialPlans)
-//          )
-//          extensions.injectQueryStageOptimizerRule(
-//            ExportRuntimeQueryStage(_, aggMetrics.runtimePlans)
-//          )
-//        }
         .enableHiveSupport()
         .getOrCreate()
     } else {
       SparkSession
         .builder()
-        .withExtensions { extensions =>
-          extensions.injectQueryStagePrepRule(
-            ExportInitialPlan(_, aggMetrics.initialPlans)
-          )
-          extensions.injectQueryStageOptimizerRule(
-            ExportRuntimeQueryStage(_, aggMetrics.runtimePlans)
-          )
-        }
         .enableHiveSupport()
         .getOrCreate()
     }
 
-    spark.sparkContext.addSparkListener(UDAOMetricListener(aggMetrics))
     spark.listenerManager.register(UDAOQueryPlanListener(aggMetrics))
     val databaseName =
       if (config.databaseName == null)
@@ -135,7 +110,6 @@ object RunTemplateQueryWithLogicalPlanExportion {
     println(queryContent)
     spark.sql(queryContent).collect()
 
-//    aggMetrics.runtimePlans.terminate()
     spark.close()
 
     val writer = new PrintWriter(s"./outs/${spark.sparkContext.appName}.json")
@@ -143,20 +117,5 @@ object RunTemplateQueryWithLogicalPlanExportion {
     println(jsonString)
     writer.write(jsonString)
     writer.close()
-//    println("---- Initial Plan ----")
-//    println(aggMetrics.initialPlans.toString)
-//    println("---- Runtime Plan ----")
-//    println(aggMetrics.runtimePlans.toString)
-//    println("---- Query Time Metric ----")
-//    println(s"${writePretty(aggMetrics.initialPlanTimeMetric)(DefaultFormats)}")
-//    println("---- Run Time Metrics - stageSubmittedTime")
-//    println(s"${writePretty(aggMetrics.stageSubmittedTime)(DefaultFormats)}")
-//    println("---- Run Time Metrics - stageCompletedTime")
-//    println(s"${writePretty(aggMetrics.stageCompletedTime)(DefaultFormats)}")
-//    println("---- Run Time Metrics - stageFirstTaskTime")
-//    println(s"${writePretty(aggMetrics.stageFirstTaskTime)(DefaultFormats)}")
-//    println("---- Run Time Metrics - stageTotalTaskTime")
-//    println(s"${writePretty(aggMetrics.stageTotalTaskTime)(DefaultFormats)}")
-
   }
 }

@@ -97,8 +97,9 @@ case class UDAOQueryPlanListener(aggMetrics: AggMetrics)
   ): Unit = {
     println("-----", funcName, "-----")
     // add customized traverse function to sort out the plan, linked type and others.
-    // test tpch q15-1 for subquery
-    // test tpch q18-1 for reused exchange
+    // test tpch q15-1 for Subquery
+    // test tpch q18-1 for Reused Exchange
+    // test tpcds q97-1/q98-1 for SubqueryBroadcast
     if (funcName == "command")
       return
 
