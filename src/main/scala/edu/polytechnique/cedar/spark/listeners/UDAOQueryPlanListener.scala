@@ -1,13 +1,14 @@
 package edu.polytechnique.cedar.spark.listeners
 
-import edu.polytechnique.cedar.spark.sql.component.collectors.LQPCollector
+import edu.polytechnique.cedar.spark.sql.component.collectors.InitialCollector
 import edu.polytechnique.cedar.spark.sql.component.{
   F,
   InputMetaInfo,
   Link,
   LinkType,
   LogicalOperator,
-  LogicalPlanMetrics
+  LogicalPlanMetrics,
+  LQPUnit
 }
 import org.apache.spark.sql.execution.QueryExecution
 import org.apache.spark.sql.util.QueryExecutionListener
@@ -15,7 +16,7 @@ import org.apache.spark.sql.util.QueryExecutionListener
 import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable
 
-case class UDAOQueryPlanListener(initialLQPCollector: LQPCollector)
+case class UDAOQueryPlanListener(initialCollector: InitialCollector)
     extends QueryExecutionListener {
   // capture the features for the initial LQP
 
@@ -45,7 +46,7 @@ case class UDAOQueryPlanListener(initialLQPCollector: LQPCollector)
       new AtomicInteger(0)
     )
     val logicalPlanMetrics = LogicalPlanMetrics(
-      operators = operators,
+      operators = operators.toMap,
       links = links,
       rawPlan = qe.optimizedPlan.toString()
     )
@@ -56,10 +57,12 @@ case class UDAOQueryPlanListener(initialLQPCollector: LQPCollector)
     )
 
     // just for our experiment -- we do not have duplicated commands.
-    assert(!initialLQPCollector.metricsMap.contains(funcName))
-    initialLQPCollector.metricsMap += (funcName -> logicalPlanMetrics)
-    initialLQPCollector.inputMetaMap += (funcName -> inputMetaInfo)
-    initialLQPCollector.durationNsMap += (funcName -> durationNs)
+    assert(!initialCollector.lqpMap.contains(funcName))
+    initialCollector.lqpMap += (funcName -> LQPUnit(
+      logicalPlanMetrics = logicalPlanMetrics,
+      inputMetaInfo = inputMetaInfo
+    ))
+    initialCollector.lqpLatsMap += (funcName -> durationNs)
   }
 
   override def onFailure(
