@@ -83,9 +83,6 @@ object RunTemplateQueryForLQPs {
         .config("spark.kryoserializer.buffer.max", "512m")
         .config("spark.yarn.historyServer.address", "http://localhost:18088")
         .withExtensions { extensions =>
-          extensions.injectQueryStagePrepRule(
-            ExportInitialPlan(_, aggMetrics.initialPlans)
-          )
           extensions.injectQueryStageOptimizerRule(
             ExportRuntimeQueryStage(_, aggMetrics.runtimePlans)
           )
@@ -96,9 +93,6 @@ object RunTemplateQueryForLQPs {
       SparkSession
         .builder()
         .withExtensions { extensions =>
-          extensions.injectQueryStagePrepRule(
-            ExportInitialPlan(_, aggMetrics.initialPlans)
-          )
           extensions.injectQueryStageOptimizerRule(
             ExportRuntimeQueryStage(_, aggMetrics.runtimePlans)
           )
