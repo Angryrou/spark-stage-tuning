@@ -12,8 +12,86 @@ import org.apache.spark.sql.execution.adaptive.{
 }
 import org.apache.spark.sql.execution.datasources.LogicalRelation
 import org.apache.spark.sql.execution.exchange.ReusedExchangeExec
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.plans.logical.{
+  Aggregate,
+  BinaryNode,
+  LeafNode,
+  LogicalPlan,
+  UnaryNode
+}
+
+import scala.collection.mutable
+import java.util.concurrent.atomic.AtomicInteger
 
 object F {
+
+  def traverseLogical(
+      plan: LogicalPlan,
+      operators: mutable.TreeMap[Int, LogicalOperator],
+      links: mutable.ArrayBuffer[Link],
+      signToOpId: mutable.TreeMap[Int, Int],
+      linkType: LinkType.LinkType,
+      rootId: Int,
+      nextOpId: AtomicInteger
+  ): Unit = {
+    val logicalOperator = LogicalOperator(plan)
+    if (!signToOpId.contains(logicalOperator.sign)) {
+      val localOpId = nextOpId.getAndIncrement()
+      signToOpId += (logicalOperator.sign -> localOpId)
+      operators += (localOpId -> logicalOperator)
+      plan match {
+        case p: UnaryNode =>
+          traverseLogical(
+            p.child,
+            operators,
+            links,
+            signToOpId,
+            LinkType.Operator,
+            localOpId,
+            nextOpId
+          )
+        case p: BinaryNode =>
+          var offset = 1
+          p.children.foreach(
+            traverseLogical(
+              _,
+              operators,
+              links,
+              signToOpId,
+              LinkType.Operator,
+              localOpId,
+              nextOpId
+            )
+          )
+        case _: LeafNode =>
+        case _           => throw new Exception("sth wrong")
+      }
+      plan.subqueries.foreach(
+        traverseLogical(
+          _,
+          operators,
+          links,
+          signToOpId,
+          LinkType.Subquery,
+          localOpId,
+          nextOpId
+        )
+      )
+    }
+    if (rootId != -1) {
+      links.append(
+        Link(
+          signToOpId(logicalOperator.sign),
+          logicalOperator.name,
+          rootId,
+          operators(rootId).name,
+          linkType
+        )
+      )
+    }
+  }
+
   def sumLogicalPlanSizeInBytes(plan: LogicalPlan): BigInt = {
     if (plan.children.isEmpty) {
       assert(plan.isInstanceOf[LogicalRelation])
@@ -28,21 +106,4 @@ object F {
     } else plan.children.map(sumLogicalPlanRowCount).sum
   }
 
-  def getUniqueOperatorId(plan: SparkPlan): Int = {
-    plan match {
-      case p: ShuffleQueryStageExec =>
-        p.shuffle.id
-      case p: BroadcastQueryStageExec =>
-        p.broadcast.id
-      case p: SubqueryBroadcastExec =>
-        //        p.name.split("#").last.toInt
-        p.id
-      case p: ReusedSubqueryExec =>
-        p.child.id
-      //        p.name.split("#").last.toInt
-      case p: ReusedExchangeExec =>
-        p.child.id
-      case p => p.id
-    }
-  }
 }
