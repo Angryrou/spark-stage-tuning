@@ -11,7 +11,7 @@ import org.apache.spark.sql.SparkSession
 import org.json4s.DefaultFormats
 import org.json4s.jackson.Serialization.writePretty
 
-object RunTemplateQueryForLQPs {
+object RunTemplateQueryForRuntime {
 
   def main(args: Array[String]): Unit = {
     val parser =
@@ -128,8 +128,6 @@ object RunTemplateQueryForLQPs {
     aggMetrics.runtimePlans.terminate()
     spark.close()
 
-    println("---- Initial Plan ----")
-    println(aggMetrics.initialPlans.toString)
     println("---- Runtime Plan ----")
     println(aggMetrics.runtimePlans.toString)
     println("---- Query Time Metric ----")
