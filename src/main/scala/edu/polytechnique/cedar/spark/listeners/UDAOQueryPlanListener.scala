@@ -1,6 +1,6 @@
 package edu.polytechnique.cedar.spark.listeners
 
-import edu.polytechnique.cedar.spark.sql.component.collectors.InitialLQPCollector
+import edu.polytechnique.cedar.spark.sql.component.collectors.LQPCollector
 import edu.polytechnique.cedar.spark.sql.component.{
   F,
   InputMetaInfo,
@@ -15,7 +15,7 @@ import org.apache.spark.sql.util.QueryExecutionListener
 import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable
 
-case class UDAOQueryPlanListener(initialLQPCollector: InitialLQPCollector)
+case class UDAOQueryPlanListener(initialLQPCollector: LQPCollector)
     extends QueryExecutionListener {
   // capture the features for the initial LQP
 
