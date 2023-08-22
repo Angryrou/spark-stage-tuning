@@ -2,7 +2,7 @@ package edu.polytechnique.cedar.spark.benchmark
 
 import edu.polytechnique.cedar.spark.benchmark.config.RunTemplateQueryConfig
 import edu.polytechnique.cedar.spark.listeners.UDAOQueryPlanListener
-import edu.polytechnique.cedar.spark.sql.component.AggMetrics
+import edu.polytechnique.cedar.spark.sql.component.InitialLQPCollector
 import org.apache.spark.sql.SparkSession
 import java.io.PrintWriter
 
@@ -52,7 +52,7 @@ object RunTemplateQueryForInitialLQP {
 
   def run(config: RunTemplateQueryConfig): Unit = {
     assert(config.benchmarkName == "TPCH" || config.benchmarkName == "TPCDS")
-    val aggMetrics = AggMetrics()
+    val initialLQPCollector = InitialLQPCollector()
     val spark = if (config.localDebug) {
       SparkSession
         .builder()
@@ -86,7 +86,7 @@ object RunTemplateQueryForInitialLQP {
         .getOrCreate()
     }
 
-    spark.listenerManager.register(UDAOQueryPlanListener(aggMetrics))
+    spark.listenerManager.register(UDAOQueryPlanListener(initialLQPCollector))
     val databaseName =
       if (config.databaseName == null)
         s"${config.benchmarkName.toLowerCase}_${config.scaleFactor}"
@@ -112,8 +112,10 @@ object RunTemplateQueryForInitialLQP {
 
     spark.close()
 
-    val writer = new PrintWriter(s"./outs/${spark.sparkContext.appName}.json")
-    val jsonString = aggMetrics.logicalPlanMetricsMap("collect").toString()
+    val writer = new PrintWriter(
+      s"./outs/initial/${spark.sparkContext.appName}.json"
+    )
+    val jsonString = initialLQPCollector.toString
     println(jsonString)
     writer.write(jsonString)
     writer.close()

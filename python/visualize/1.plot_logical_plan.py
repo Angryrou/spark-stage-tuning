@@ -15,9 +15,9 @@ from visualize.utils import JsonUtils, plot_nx_graph
 class Args():
     def __init__(self):
         self.parser = argparse.ArgumentParser()
-        self.parser.add_argument("-o", "--out-path", type=str, default="../../outs")
+        self.parser.add_argument("-o", "--out-path", type=str, default="../../outs/initial")
         self.parser.add_argument("-f", "--file-name", type=str, default="TPCDS_1-1.json")
-        self.parser.add_argument("-p", "--fig-path", type=str, default="./figs")
+        self.parser.add_argument("-p", "--fig-path", type=str, default="./figs/initial")
 
     def parse(self):
         return self.parser.parse_args()
@@ -28,7 +28,7 @@ file = os.path.join(args.out_path, args.file_name)
 fig_title = args.file_name.split(".")[0]
 fig_path = args.fig_path
 assert os.path.exists(file)
-j = JsonUtils.load_json(file)
+j = JsonUtils.load_json(file)["LQP"]
 links = j["links"]
 edge_types = ["Operator", "Subquery"]
 

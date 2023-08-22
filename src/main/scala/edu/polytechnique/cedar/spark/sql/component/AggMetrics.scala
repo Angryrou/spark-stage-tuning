@@ -10,12 +10,6 @@ import scala.collection.mutable
 
 case class AggMetrics() {
 
-  val logicalPlanMetricsMap: mutable.Map[String, LogicalPlanMetrics] =
-    mutable.TreeMap[String, LogicalPlanMetrics]()
-  val planInputMetaMap: mutable.Map[String, InputMetaInfo] =
-    mutable.TreeMap[String, InputMetaInfo]()
-
-  val initialPlans: InitialPlans = new InitialPlans()
   val initialPlanTimeMetric: InitialPlanTimeMetric = InitialPlanTimeMetric(
     queryStartTimeMap =
       mutable.TreeMap[Long, Long](), // executionId to queryStartTime

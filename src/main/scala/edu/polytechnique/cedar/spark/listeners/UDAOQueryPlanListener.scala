@@ -1,8 +1,8 @@
 package edu.polytechnique.cedar.spark.listeners
 
 import edu.polytechnique.cedar.spark.sql.component.{
-  AggMetrics,
   F,
+  InitialLQPCollector,
   InputMetaInfo,
   Link,
   LinkType,
@@ -15,8 +15,9 @@ import org.apache.spark.sql.util.QueryExecutionListener
 import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable
 
-case class UDAOQueryPlanListener(aggMetrics: AggMetrics)
+case class UDAOQueryPlanListener(initialLQPCollector: InitialLQPCollector)
     extends QueryExecutionListener {
+  // capture the features for the initial LQP
 
   override def onSuccess(
       funcName: String,
@@ -55,9 +56,10 @@ case class UDAOQueryPlanListener(aggMetrics: AggMetrics)
     )
 
     // just for our experiment -- we do not have duplicated commands.
-    assert(!aggMetrics.logicalPlanMetricsMap.contains(funcName))
-    aggMetrics.logicalPlanMetricsMap += (funcName -> logicalPlanMetrics)
-    aggMetrics.planInputMetaMap += (funcName -> inputMetaInfo)
+    assert(!initialLQPCollector.metricsMap.contains(funcName))
+    initialLQPCollector.metricsMap += (funcName -> logicalPlanMetrics)
+    initialLQPCollector.inputMetaMap += (funcName -> inputMetaInfo)
+    initialLQPCollector.durationNsMap += (funcName -> durationNs)
   }
 
   override def onFailure(
