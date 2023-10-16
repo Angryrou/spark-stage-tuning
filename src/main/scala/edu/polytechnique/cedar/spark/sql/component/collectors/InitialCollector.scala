@@ -11,10 +11,12 @@ class InitialCollector extends MyUnit {
 
   val lqpMap: mutable.Map[String, LQPUnit] = mutable.TreeMap[String, LQPUnit]()
 
-  val lqpLatsMap: mutable.Map[String, Long] = mutable.TreeMap[String, Long]()
+  val lqpDurationInMsMap: mutable.Map[String, Long] =
+    mutable.TreeMap[String, Long]()
 
   override def toJson: JValue = {
-    val json = lqpMap("collect").json ~ ("LatNs" -> lqpLatsMap("collect"))
+    val json = lqpMap("collect").json ~
+      ("DurationInMs" -> lqpDurationInMsMap("collect"))
     render(json)
   }
 }

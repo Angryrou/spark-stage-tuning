@@ -1,15 +1,18 @@
 package edu.polytechnique.cedar.spark.benchmark
 
 import edu.polytechnique.cedar.spark.benchmark.config.RunTemplateQueryConfig
-import edu.polytechnique.cedar.spark.listeners.UDAOMetricListener
-import edu.polytechnique.cedar.spark.sql.component.AggMetrics
-import edu.polytechnique.cedar.spark.sql.{
-  ExportInitialPlan,
-  ExportRuntimeQueryStage
+import edu.polytechnique.cedar.spark.listeners.{
+  UDAOQueryExecutionListener,
+  UDAOSparkListener
 }
+import edu.polytechnique.cedar.spark.sql.component.collectors.{
+  InitialCollector,
+  RuntimeCollector
+}
+import edu.polytechnique.cedar.spark.sql.extensions.ExposeRuntimeLogicalPlan
 import org.apache.spark.sql.SparkSession
-import org.json4s.DefaultFormats
-import org.json4s.jackson.Serialization.writePretty
+
+import java.io.PrintWriter
 
 object RunTemplateQueryForRuntime {
 
@@ -57,7 +60,8 @@ object RunTemplateQueryForRuntime {
 
   def run(config: RunTemplateQueryConfig): Unit = {
     assert(config.benchmarkName == "TPCH" || config.benchmarkName == "TPCDS")
-    val aggMetrics = AggMetrics()
+    val initialCollector = new InitialCollector()
+    val runtimeCollector = new RuntimeCollector()
     val spark = if (config.localDebug) {
       SparkSession
         .builder()
@@ -83,8 +87,8 @@ object RunTemplateQueryForRuntime {
         .config("spark.kryoserializer.buffer.max", "512m")
         .config("spark.yarn.historyServer.address", "http://localhost:18088")
         .withExtensions { extensions =>
-          extensions.injectQueryStageOptimizerRule(
-            ExportRuntimeQueryStage(_, aggMetrics.runtimePlans)
+          extensions.injectRuntimeOptimizerPrefixRule(
+            ExposeRuntimeLogicalPlan(_, runtimeCollector, config.localDebug)
           )
         }
         .enableHiveSupport()
@@ -93,15 +97,20 @@ object RunTemplateQueryForRuntime {
       SparkSession
         .builder()
         .withExtensions { extensions =>
-          extensions.injectQueryStageOptimizerRule(
-            ExportRuntimeQueryStage(_, aggMetrics.runtimePlans)
+          extensions.injectRuntimeOptimizerPrefixRule(
+            ExposeRuntimeLogicalPlan(_, runtimeCollector, config.localDebug)
           )
         }
         .enableHiveSupport()
         .getOrCreate()
     }
 
-    spark.sparkContext.addSparkListener(UDAOMetricListener(aggMetrics))
+    spark.listenerManager.register(
+      UDAOQueryExecutionListener(initialCollector, config.localDebug)
+    )
+    spark.sparkContext.addSparkListener(
+      UDAOSparkListener(runtimeCollector, config.localDebug)
+    )
     val databaseName =
       if (config.databaseName == null)
         s"${config.benchmarkName.toLowerCase}_${config.scaleFactor}"
@@ -124,22 +133,22 @@ object RunTemplateQueryForRuntime {
     println(s"run ${queryLocationHeader}/${tid}/${tid}-${qid}.sql")
     println(queryContent)
     spark.sql(queryContent).collect()
-
-    aggMetrics.runtimePlans.terminate()
     spark.close()
 
-    println("---- Runtime Plan ----")
-    println(aggMetrics.runtimePlans.toString)
-    println("---- Query Time Metric ----")
-    println(s"${writePretty(aggMetrics.initialPlanTimeMetric)(DefaultFormats)}")
-    println("---- Run Time Metrics - stageSubmittedTime")
-    println(s"${writePretty(aggMetrics.stageSubmittedTime)(DefaultFormats)}")
-    println("---- Run Time Metrics - stageCompletedTime")
-    println(s"${writePretty(aggMetrics.stageCompletedTime)(DefaultFormats)}")
-    println("---- Run Time Metrics - stageFirstTaskTime")
-    println(s"${writePretty(aggMetrics.stageFirstTaskTime)(DefaultFormats)}")
-    println("---- Run Time Metrics - stageTotalTaskTime")
-    println(s"${writePretty(aggMetrics.stageTotalTaskTime)(DefaultFormats)}")
+    val writer1 = new PrintWriter(
+      s"./outs/initial/${spark.sparkContext.appName}_${spark.sparkContext.applicationId}.json"
+    )
+    val jsonString = initialCollector.toString
+    // println(jsonString)
+    writer1.write(jsonString)
+    writer1.close()
 
+    val writer2 = new PrintWriter(
+      s"./outs/runtime/${spark.sparkContext.appName}_${spark.sparkContext.applicationId}_lqps.json"
+    )
+    val lqpJsonString = runtimeCollector.lqpMapJsonStr
+    // println(lqpJsonString)
+    writer2.write(lqpJsonString)
+    writer2.close()
   }
 }

@@ -1,30 +1,28 @@
 package edu.polytechnique.cedar.spark.sql.component
 
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.execution.{
-  ReusedSubqueryExec,
-  SparkPlan,
-  SubqueryBroadcastExec
-}
-import org.apache.spark.sql.execution.adaptive.{
-  BroadcastQueryStageExec,
-  ShuffleQueryStageExec
-}
-import org.apache.spark.sql.execution.datasources.LogicalRelation
-import org.apache.spark.sql.execution.exchange.ReusedExchangeExec
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.plans.logical.{
-  Aggregate,
   BinaryNode,
   LeafNode,
+  LocalRelation,
   LogicalPlan,
   UnaryNode
 }
+import org.apache.spark.sql.execution.datasources.LogicalRelation
+import org.apache.spark.sql.execution.SQLExecution
+import org.apache.spark.sql.execution.adaptive.LogicalQueryStage
 
 import scala.collection.mutable
 import java.util.concurrent.atomic.AtomicInteger
 
 object F {
+
+  def getTimeInMs: Long = System.currentTimeMillis()
+
+  def getExecutionId(spark: SparkSession): Option[Long] = {
+    Option(spark.sparkContext.getLocalProperty(SQLExecution.EXECUTION_ID_KEY))
+      .map(_.toLong)
+  }
 
   def traverseLogical(
       plan: LogicalPlan,
@@ -52,7 +50,6 @@ object F {
             nextOpId
           )
         case p: BinaryNode =>
-          var offset = 1
           p.children.foreach(
             traverseLogical(
               _,
@@ -92,16 +89,51 @@ object F {
     }
   }
 
+  def exposeLQP(plan: LogicalPlan): LQPUnit = {
+    val operators = mutable.TreeMap[Int, LogicalOperator]()
+    val links = mutable.ArrayBuffer[Link]()
+    val signToOpId = mutable.TreeMap[Int, Int]()
+    F.traverseLogical(
+      plan,
+      operators,
+      links,
+      signToOpId,
+      LinkType.Operator,
+      -1,
+      new AtomicInteger(0)
+    )
+    val logicalPlanMetrics = LogicalPlanMetrics(
+      operators = operators.toMap,
+      links = links,
+      rawPlan = plan.toString()
+    )
+
+    val inputMetaInfo = InputMetaInfo(
+      inputSizeInBytes = F.sumLogicalPlanSizeInBytes(plan),
+      inputRowCount = F.sumLogicalPlanRowCount(plan)
+    )
+
+    LQPUnit(logicalPlanMetrics, inputMetaInfo)
+  }
+
   def sumLogicalPlanSizeInBytes(plan: LogicalPlan): BigInt = {
     if (plan.children.isEmpty) {
-      assert(plan.isInstanceOf[LogicalRelation])
+      assert(
+        plan.isInstanceOf[LogicalRelation] || plan
+          .isInstanceOf[LogicalQueryStage] || plan.isInstanceOf[LocalRelation],
+        plan.getClass
+      )
       plan.stats.sizeInBytes
     } else plan.children.map(sumLogicalPlanSizeInBytes).sum
   }
 
   def sumLogicalPlanRowCount(plan: LogicalPlan): BigInt = {
     if (plan.children.isEmpty) {
-      assert(plan.isInstanceOf[LogicalRelation])
+      assert(
+        plan.isInstanceOf[LogicalRelation] || plan
+          .isInstanceOf[LogicalQueryStage] || plan.isInstanceOf[LocalRelation],
+        plan.getClass
+      )
       plan.stats.rowCount.getOrElse(0)
     } else plan.children.map(sumLogicalPlanRowCount).sum
   }
