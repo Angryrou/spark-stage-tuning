@@ -3,6 +3,7 @@ package edu.polytechnique.cedar.spark.sql
 import edu.polytechnique.cedar.spark.sql
 import edu.polytechnique.cedar.spark.sql.DepType.DepType
 import edu.polytechnique.cedar.spark.sql.InType.InType
+import edu.polytechnique.cedar.spark.sql.component.MyUnit
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.{Expression, PlanExpression}
@@ -34,12 +35,6 @@ import org.json4s.JValue
 
 import scala.collection.immutable.TreeMap
 import scala.collection.mutable
-
-trait MyUnit {
-  def toJson: json4s.JValue
-  override def toString: String = pretty(toJson)
-  def toCompactString: String = compact(toJson)
-}
 
 // node and edges of the operator DAG and queryStage DAG
 case class PlanOperator(id: Int, operator: SparkPlan) extends MyUnit {
@@ -202,6 +197,24 @@ case class RuntimePlan(
     }
   }
 
+  def getUniqueOperatorId(plan: SparkPlan): Int = {
+    plan match {
+      case p: ShuffleQueryStageExec =>
+        p.shuffle.id
+      case p: BroadcastQueryStageExec =>
+        p.broadcast.id
+      case p: SubqueryBroadcastExec =>
+        //        p.name.split("#").last.toInt
+        p.id
+      case p: ReusedSubqueryExec =>
+        p.child.id
+      //        p.name.split("#").last.toInt
+      case p: ReusedExchangeExec =>
+        p.child.id
+      case p => p.id
+    }
+  }
+
   def addQueryStageLink(
       queryStageFrom: PlanQueryStage,
       queryStageTo: PlanQueryStage,
@@ -351,12 +364,6 @@ object DepType extends Enumeration {
 object F {
 
   // supportive functions
-
-  def getExecutionId(spark: SparkSession): Option[Long] = {
-    Option(spark.sparkContext.getLocalProperty(SQLExecution.EXECUTION_ID_KEY))
-      .map(_.toLong)
-  }
-
   def getUniqueOperatorId(plan: SparkPlan): Int = {
     plan match {
       case p: ShuffleQueryStageExec =>
@@ -364,15 +371,20 @@ object F {
       case p: BroadcastQueryStageExec =>
         p.broadcast.id
       case p: SubqueryBroadcastExec =>
-//        p.name.split("#").last.toInt
+        //        p.name.split("#").last.toInt
         p.id
       case p: ReusedSubqueryExec =>
         p.child.id
-//        p.name.split("#").last.toInt
+      //        p.name.split("#").last.toInt
       case p: ReusedExchangeExec =>
         p.child.id
       case p => p.id
     }
+  }
+
+  def getExecutionId(spark: SparkSession): Option[Long] = {
+    Option(spark.sparkContext.getLocalProperty(SQLExecution.EXECUTION_ID_KEY))
+      .map(_.toLong)
   }
 
   def showChildren(plan: SparkPlan): Unit = {
@@ -635,28 +647,6 @@ case class ExportRuntimeQueryStage(
     }
     plan
   }
-}
-
-case class AggMetrics() {
-  val initialPlans: InitialPlans = new InitialPlans()
-  val initialPlanTimeMetric: InitialPlanTimeMetric = InitialPlanTimeMetric(
-    queryStartTimeMap =
-      mutable.TreeMap[Long, Long](), // executionId to queryStartTime
-    queryEndTimeMap =
-      mutable.TreeMap[Long, Long]() // executionId to queryEndTime
-  )
-  val runtimePlans: RuntimePlans = new RuntimePlans()
-
-  val stageSubmittedTime: mutable.TreeMap[Int, Long] =
-    mutable.TreeMap[Int, Long]()
-  val stageCompletedTime: mutable.TreeMap[Int, Long] =
-    mutable.TreeMap[Int, Long]()
-  val stageFirstTaskTime: mutable.TreeMap[Int, Long] =
-    mutable.TreeMap[Int, Long]()
-  val stageTotalTaskTime: mutable.TreeMap[Int, Long] =
-    mutable.TreeMap[Int, Long]()
-
-  var successFlag: Boolean = true
 }
 
 object Status {
