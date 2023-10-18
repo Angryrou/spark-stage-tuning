@@ -11,7 +11,7 @@ verbose_mode=false
 
 # Define usage function
 usage() {
-  echo "Usage: $0 -q <query> -c <theta_c> -p <theta_p> -s <theta_s> -n <name> [-v]"
+  echo "Usage: $0 -q <query> -c <theta_c> -p <theta_p> -s <theta_s> -n <name> -x <xpath> [-v]"
   echo "  -q <query>: Specify template id (tid) and query variant id (qid)."
   echo "  -c <theta_c>: Specify context parameters from k1 to k8"
   echo "  -p <theta_p>: Specify logical query plan (LQP) parameters from s1 to s7"
@@ -23,7 +23,7 @@ usage() {
 }
 
 # Parse command line options with getopts
-while getopts "q:c:p:s:n:p:v" opt; do
+while getopts "q:c:p:s:n:x:v" opt; do
   case "$opt" in
     q) query="$OPTARG";;
     c) theta_c="$OPTARG";;
