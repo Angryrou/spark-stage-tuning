@@ -1,11 +1,4 @@
 package local.debug
-
-import edu.polytechnique.cedar.spark.listeners.MySparkListener
-import edu.polytechnique.cedar.spark.sql.{
-  AggMetrics,
-  ExportInitialPlan
-//  ExportRuntimeQueryStage
-}
 import org.apache.spark.sql.SparkSession
 import org.json4s.DefaultFormats
 import org.json4s.jackson.Serialization.writePretty
@@ -13,7 +6,7 @@ import org.json4s.jackson.Serialization.writePretty
 object AQETest {
 
   def main(args: Array[String]): Unit = {
-    val aggMetrics = AggMetrics()
+//    val aggMetrics = AggMetrics()
 
     val spark =
       try {
@@ -29,9 +22,9 @@ object AQETest {
             .config("spark.default.parallelism", "4")
             .config("spark.sql.adaptive.enable", "true")
             .withExtensions { extensions =>
-              extensions.injectQueryStagePrepRule(
-                ExportInitialPlan(_, aggMetrics.initialPlans)
-              )
+//              extensions.injectQueryStagePrepRule(
+//                ExportInitialPlan(_, aggMetrics.initialPlans)
+//              )
 //              extensions.injectQueryStageOptimizerRule(
 //                ExportRuntimeQueryStage(_, aggMetrics.runtimePlans)
 //              )
@@ -40,7 +33,7 @@ object AQETest {
             .getOrCreate()
       }
 
-    spark.sparkContext.addSparkListener(MySparkListener(aggMetrics))
+//    spark.sparkContext.addSparkListener(UDAOMetricListener(aggMetrics))
 //    spark.listenerManager.register(MyQueryExecutionListener())
 
     //    spark.sql("show databases").show()
@@ -80,23 +73,23 @@ object AQETest {
 
     println(queryContent3)
 
-    println(s"Before Execution: ${aggMetrics.initialPlans.toString()}")
+//    println(s"Before Execution: ${aggMetrics.initialPlans.toString()}")
     spark.sql(queryContent3).collect()
 
-    println("---- Initial Plan ----")
-    println(s"${writePretty(aggMetrics.initialPlans)(DefaultFormats)}")
-    println("---- Runtime Plan ----")
-    println(s"${writePretty(aggMetrics.runtimePlans)(DefaultFormats)}")
-    println("---- Query Time Metric ----")
-    println(s"${writePretty(aggMetrics.initialPlanTimeMetric)(DefaultFormats)}")
-    println("---- Run Time Metrics - stageSubmittedTime")
-    println(s"${writePretty(aggMetrics.stageSubmittedTime)(DefaultFormats)}")
-    println("---- Run Time Metrics - stageCompletedTime")
-    println(s"${writePretty(aggMetrics.stageCompletedTime)(DefaultFormats)}")
-    println("---- Run Time Metrics - stageFirstTaskTime")
-    println(s"${writePretty(aggMetrics.stageFirstTaskTime)(DefaultFormats)}")
-    println("---- Run Time Metrics - stageTotalTaskTime")
-    println(s"${writePretty(aggMetrics.stageTotalTaskTime)(DefaultFormats)}")
+//    println("---- Initial Plan ----")
+//    println(s"${writePretty(aggMetrics.initialPlans)(DefaultFormats)}")
+//    println("---- Runtime Plan ----")
+//    println(s"${writePretty(aggMetrics.runtimePlans)(DefaultFormats)}")
+//    println("---- Query Time Metric ----")
+//    println(s"${writePretty(aggMetrics.initialPlanTimeMetric)(DefaultFormats)}")
+//    println("---- Run Time Metrics - stageSubmittedTime")
+//    println(s"${writePretty(aggMetrics.stageSubmittedTime)(DefaultFormats)}")
+//    println("---- Run Time Metrics - stageCompletedTime")
+//    println(s"${writePretty(aggMetrics.stageCompletedTime)(DefaultFormats)}")
+//    println("---- Run Time Metrics - stageFirstTaskTime")
+//    println(s"${writePretty(aggMetrics.stageFirstTaskTime)(DefaultFormats)}")
+//    println("---- Run Time Metrics - stageTotalTaskTime")
+//    println(s"${writePretty(aggMetrics.stageTotalTaskTime)(DefaultFormats)}")
 
     println("done.")
   }
