@@ -4,7 +4,8 @@ import edu.polytechnique.cedar.spark.benchmark.config.RunTemplateQueryConfig
 import edu.polytechnique.cedar.spark.listeners.UDAOQueryExecutionListener
 import edu.polytechnique.cedar.spark.sql.component.collectors.InitialCollector
 import org.apache.spark.sql.SparkSession
-import java.io.PrintWriter
+
+import java.io.{File, PrintWriter}
 
 object RunTemplateQueryForInitialLQP {
 
@@ -35,6 +36,10 @@ object RunTemplateQueryForInitialLQP {
         opt[String]('n', "databaseName")
           .action((x, c) => c.copy(databaseName = x))
           .text("customized databaseName")
+        opt[String]('x', "extractedPath")
+          .action((x, c) => c.copy(extractedPath = x))
+          .text("customized path for the extracted traces")
+          .required()
         opt[String]('d', "localDebug")
           .action((x, c) => c.copy(localDebug = x.toBoolean))
           .text("Local debug")
@@ -115,8 +120,11 @@ object RunTemplateQueryForInitialLQP {
 
     spark.close()
 
+    val file = new File(config.extractedPath)
+    file.getParentFile.mkdirs()
+
     val writer = new PrintWriter(
-      s"./outs/initial/${spark.sparkContext.appName}_${spark.sparkContext.applicationId}.json"
+      s"${config.extractedPath}/${spark.sparkContext.appName}_${spark.sparkContext.applicationId}_initial.json"
     )
     val jsonString = initialCollector.toString
     println(jsonString)

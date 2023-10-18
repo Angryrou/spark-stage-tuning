@@ -7,5 +7,6 @@ case class RunTemplateQueryConfig(
     databaseName: String = null,
     queryName: String = null,
     templateName: String = null,
+    extractedPath: String = null,
     localDebug: Boolean = false
 )

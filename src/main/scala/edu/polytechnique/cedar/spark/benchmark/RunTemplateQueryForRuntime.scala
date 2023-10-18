@@ -13,6 +13,7 @@ import edu.polytechnique.cedar.spark.sql.extensions.ExposeRuntimeLogicalPlan
 import org.apache.spark.sql.SparkSession
 
 import java.io.PrintWriter
+import java.io.File
 
 object RunTemplateQueryForRuntime {
 
@@ -43,6 +44,10 @@ object RunTemplateQueryForRuntime {
         opt[String]('n', "databaseName")
           .action((x, c) => c.copy(databaseName = x))
           .text("customized databaseName")
+        opt[String]('x', "extractedPath")
+          .action((x, c) => c.copy(extractedPath = x))
+          .text("customized path for the extracted traces")
+          .required()
         opt[String]('d', "localDebug")
           .action((x, c) => c.copy(localDebug = x.toBoolean))
           .text("Local debug")
@@ -137,8 +142,11 @@ object RunTemplateQueryForRuntime {
     spark.sql(queryContent).collect()
     spark.close()
 
+    val file = new File(config.extractedPath)
+    file.getParentFile.mkdirs()
+
     val writer1 = new PrintWriter(
-      s"./outs/initial/${spark.sparkContext.appName}_${spark.sparkContext.applicationId}.json"
+      s"${config.extractedPath}/${spark.sparkContext.appName}_${spark.sparkContext.applicationId}_initial.json"
     )
     val jsonString = initialCollector.toString
     // println(jsonString)
@@ -146,7 +154,7 @@ object RunTemplateQueryForRuntime {
     writer1.close()
 
     val writer2 = new PrintWriter(
-      s"./outs/runtime/${spark.sparkContext.appName}_${spark.sparkContext.applicationId}_lqps.json"
+      s"${config.extractedPath}/${spark.sparkContext.appName}_${spark.sparkContext.applicationId}_runtime.json"
     )
     val lqpJsonString = runtimeCollector.lqpMapJsonStr
     // println(lqpJsonString)
