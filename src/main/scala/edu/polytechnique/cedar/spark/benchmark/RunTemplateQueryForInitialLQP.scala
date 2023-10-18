@@ -120,8 +120,8 @@ object RunTemplateQueryForInitialLQP {
 
     spark.close()
 
-    val file = new File(config.extractedPath)
-    file.getParentFile.mkdirs()
+    val xFile = new File(config.extractedPath)
+    xFile.mkdirs()
 
     val writer = new PrintWriter(
       s"${config.extractedPath}/${spark.sparkContext.appName}_${spark.sparkContext.applicationId}_initial.json"
