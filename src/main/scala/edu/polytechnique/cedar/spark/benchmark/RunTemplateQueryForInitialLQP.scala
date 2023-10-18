@@ -86,6 +86,7 @@ object RunTemplateQueryForInitialLQP {
         .getOrCreate()
     }
 
+    initialCollector.markConfiguration(spark)
     spark.listenerManager.register(
       UDAOQueryExecutionListener(initialCollector, config.localDebug)
     )

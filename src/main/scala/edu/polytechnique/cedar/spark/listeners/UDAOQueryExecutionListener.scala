@@ -9,7 +9,6 @@ case class UDAOQueryExecutionListener(
     initialCollector: InitialCollector,
     debug: Boolean
 ) extends QueryExecutionListener {
-  // capture the features for the initial LQP
 
   override def onSuccess(
       funcName: String,

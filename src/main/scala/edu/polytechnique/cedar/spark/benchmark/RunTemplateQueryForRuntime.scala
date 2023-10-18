@@ -77,6 +77,7 @@ object RunTemplateQueryForRuntime {
         .config("spark.sql.inMemoryColumnarStorage.batchSize", "10000")
         .config("spark.sql.files.maxPartitionBytes", "128MB")
         .config("spark.sql.autoBroadcastJoinThreshold", "10MB")
+        .config("spark.sql.adaptive.autoBroadcastJoinThreshold", "10MB")
         .config("spark.sql.shuffle.partitions", "200")
         .config("spark.sql.adaptive.enable", "true")
         .config("spark.sql.parquet.compression.codec", "snappy")
@@ -105,6 +106,7 @@ object RunTemplateQueryForRuntime {
         .getOrCreate()
     }
 
+    initialCollector.markConfiguration(spark)
     spark.listenerManager.register(
       UDAOQueryExecutionListener(initialCollector, config.localDebug)
     )
