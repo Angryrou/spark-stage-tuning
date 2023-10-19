@@ -7,6 +7,7 @@ theta_p="64MB 0.2 0b 10MB 200 256MB 5.0"
 theta_s="0.2 1MB"
 name="unnamed"
 xpath="./outs"
+updateLqpId=""
 verbose_mode=false
 
 # Define usage function

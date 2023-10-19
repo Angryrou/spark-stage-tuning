@@ -118,6 +118,14 @@ object RunTemplateQueryForRuntimeTaskB {
       SparkSession
         .builder()
         .withExtensions { extensions =>
+          extensions.injectRuntimeOptimizerPrefixRule {
+            UpdateThetaR(
+              _,
+              runtimeCollector,
+              config.updateLqpId.toInt,
+              config.localDebug
+            )
+          }
           extensions.injectRuntimeOptimizerPrefixRule(
             ExposeRuntimeLogicalPlan(_, runtimeCollector, config.localDebug)
           )

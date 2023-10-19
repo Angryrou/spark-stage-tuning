@@ -8,7 +8,7 @@ import edu.polytechnique.cedar.spark.sql.component.F
 case class UpdateThetaR(
     spark: SparkSession,
     rc: RuntimeCollector,
-    lqpTurningId: Int,
+    updateLqpId: Int,
     debug: Boolean
 ) extends Rule[LogicalPlan] {
 
@@ -27,7 +27,7 @@ case class UpdateThetaR(
     )
     if (executionId.get == 1) {
       val lqpId = rc.getLqpId
-      if (lqpId == lqpTurningId) { // happening before counting the LQP
+      if (lqpId == updateLqpId) { // happening before counting the LQP
         for ((k, v) <- target) {
           spark.conf.set(k, v)
         }
