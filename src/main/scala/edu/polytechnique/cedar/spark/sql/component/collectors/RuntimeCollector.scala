@@ -19,6 +19,9 @@ class RuntimeCollector() {
     mutable.TreeMap[Int, Long]()
   private val lqpSnapshot: mutable.Map[Int, RunningQueryStageSnapshot] =
     mutable.TreeMap[Int, RunningQueryStageSnapshot]()
+  private val lqpThetaR: mutable.Map[Int, Array[(String, String)]] =
+    mutable.TreeMap[Int, Array[(String, String)]]()
+
   private var sqlStartTimeInMs: Long = -1
   private var sqlEndTimeInMs: Long = -1
 
@@ -28,15 +31,19 @@ class RuntimeCollector() {
 
   val runtimeStageTaskTracker = new RuntimeStageTaskTracker()
 
+  def getLqpId: Int = lqpId.get()
+
   def addLQP(
       lqpUnit: LQPUnit,
       startTimeInMs: Long,
-      snapshot: RunningQueryStageSnapshot
+      snapshot: RunningQueryStageSnapshot,
+      runtimeKnobList: Array[(String, String)]
   ): Int = {
     val curId = lqpId.getAndIncrement()
     lqpMap += (curId -> lqpUnit)
     lqpStartTimeInMsMap += (curId -> startTimeInMs)
     lqpSnapshot += (curId -> snapshot)
+    lqpThetaR += (curId -> runtimeKnobList)
     curId
   }
 
@@ -58,7 +65,8 @@ class RuntimeCollector() {
         x._2.json ~
           ("RunningQueryStageSnapshot" -> lqpSnapshot(x._1).toJson) ~
           ("StartTimeInMs" -> lqpStartTimeInMsMap(x._1)) ~
-          ("DurationInMs" -> (sqlEndTimeInMs - lqpStartTimeInMsMap(x._1)))
+          ("DurationInMs" -> (sqlEndTimeInMs - lqpStartTimeInMsMap(x._1))) ~
+          ("RuntimeConfiguration" -> lqpThetaR(x._1).toSeq)
       )
     )
     val json = ("runtimeLQPs" -> lqpMap2.toMap) ~
