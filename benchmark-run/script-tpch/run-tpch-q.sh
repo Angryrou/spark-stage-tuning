@@ -65,6 +65,7 @@ qpath=/opt/hex_users/$USER/chenghao/UDAO2022
 --conf spark.yarn.am.memory=${k1} \
 --conf spark.yarn.am.cores=${k2} \
 --conf spark.sql.adaptive.enabled=true \
+--conf spark.driver.maxResultSize=0 \
 --conf spark.sql.adaptive.advisoryPartitionSizeInBytes=${s1} \
 --conf spark.sql.adaptive.nonEmptyPartitionRatioForBroadcastJoin=${s2} \
 --conf spark.sql.adaptive.maxShuffledHashJoinLocalMapThreshold=${s3} \
