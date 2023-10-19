@@ -9,7 +9,7 @@ s1s4s5Worst2="256MB 320MB 200"
 s1s4s5Worst3="64MB 320MB 200"
 
 for s1s4s5 in "$s1s4s5Worst1" "$s1s4s5Worst2" "$s1s4s5Worst3" "$s1s4s5Default"; do
-  for uId in 1; do
+  for uId in 1 4; do
     read s1 s4 s5 <<< $s1s4s5
     name=tpch100_q${tid}-${qid}_s1:${s1}_s4:${s4}_s5:${s5}_adapt_uId:${uId}
     for i in 1 2 3; do
