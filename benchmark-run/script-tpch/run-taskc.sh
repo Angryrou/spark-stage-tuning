@@ -18,7 +18,7 @@ for k1 in 8g 16g 32g; do
         sleep 5
         echo -------------------------
         echo start running $name x$i
-        bash run-tpch-q.sh -n $name -q "${tid} ${qid}" -c "${k1} ${k2} ${k3} $((k2 * k3 * 2)) 48m 200 true 0.6" -x "outs/taska" | tee logs/${name}_x${i}.log 2>&1
+        bash run-tpch-q.sh -n $name -q "${tid} ${qid}" -c "${k1} ${k2} ${k3} $((k2 * k3 * 2)) 48m 200 true 0.6" -x "outs/taskc" | tee logs/${name}_x${i}.log 2>&1
       done
     done
   done
