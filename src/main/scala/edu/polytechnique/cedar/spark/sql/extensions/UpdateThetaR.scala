@@ -13,9 +13,7 @@ case class UpdateThetaR(
 ) extends Rule[LogicalPlan] {
 
   private val target = Map(
-    "spark.sql.adaptive.advisoryPartitionSizeInBytes" -> "16MB",
-    "spark.sql.adaptive.autoBroadcastJoinThreshold" -> "10MB",
-    "spark.sql.shuffle.partitions" -> "100"
+    "spark.sql.adaptive.autoBroadcastJoinThreshold" -> "320MB"
   )
 
   override def apply(plan: LogicalPlan): LogicalPlan = {
