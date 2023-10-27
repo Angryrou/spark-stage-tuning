@@ -5,6 +5,7 @@ qid=${2:-1}
 
 s1s4s5="16MB 10MB 100"
 read s1 s4 s5 <<< $s1s4s5
+uId=1
 
 for k1 in 8g 16g 32g; do
   for k2 in 3 5 ; do
