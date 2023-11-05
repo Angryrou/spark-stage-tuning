@@ -24,8 +24,8 @@ case class UDAOQueryExecutionListener(
     if (funcName == "command")
       return
     // just for our experiment -- we do not have duplicated commands.
-    assert(!initialCollector.lqpMap.contains(funcName))
-    initialCollector.lqpMap += (funcName -> F.exposeLQP(qe.optimizedPlan))
+    assert(!initialCollector.lqpDurationInMsMap.contains(funcName))
+    // initialCollector.lqpMap += (funcName -> F.exposeLQP(qe.optimizedPlan))
     initialCollector.lqpDurationInMsMap += (funcName -> (durationNs / 1000000))
   }
 

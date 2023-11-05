@@ -69,7 +69,7 @@ class RuntimeCollector() {
           ("RuntimeConfiguration" -> lqpThetaR(x._1).toSeq)
       )
     )
-    val json = ("runtimeLQPs" -> lqpMap2.toMap) ~
+    val json = ("RuntimeLQPs" -> lqpMap2.toMap) ~
       ("SQLStartTimeInMs" -> sqlStartTimeInMs) ~
       ("SQLEndTimeInMs" -> sqlEndTimeInMs) ~
       ("SQLDurationInMs" -> (sqlEndTimeInMs - sqlStartTimeInMs))

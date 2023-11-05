@@ -2,6 +2,7 @@ package edu.polytechnique.cedar.spark.benchmark
 
 import edu.polytechnique.cedar.spark.benchmark.config.RunTemplateQueryConfig
 import edu.polytechnique.cedar.spark.listeners.UDAOQueryExecutionListener
+import edu.polytechnique.cedar.spark.sql.component.F
 import edu.polytechnique.cedar.spark.sql.component.collectors.InitialCollector
 import org.apache.spark.sql.SparkSession
 
@@ -116,6 +117,10 @@ object RunTemplateQueryForInitialLQP {
 
     println(s"run ${queryLocationHeader}/${tid}/${tid}-${qid}.sql")
     println(queryContent)
+
+    initialCollector.lqpMap += ("collect" -> F.exposeLQP(
+      spark.sql(queryContent).queryExecution.optimizedPlan
+    ))
     spark.sql(queryContent).collect()
 
     spark.close()
