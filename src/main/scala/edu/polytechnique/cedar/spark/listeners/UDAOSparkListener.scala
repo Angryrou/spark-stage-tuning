@@ -5,7 +5,7 @@ import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.scheduler.{
   SparkListener,
   SparkListenerEvent,
-  SparkListenerStageCompleted,
+  SparkListenerStageSubmitted,
   SparkListenerTaskEnd,
   SparkListenerTaskStart,
   TaskInfo
@@ -46,11 +46,20 @@ case class UDAOSparkListener(rc: RuntimeCollector, debug: Boolean)
         mutable.Buffer[(TaskInfo, TaskMetrics)]()
       ) += ((info, metrics))
     }
+    if (
+      rc.runtimeStageTaskTracker.taskMetricsMap.size ==
+        rc.runtimeStageTaskTracker.numTasksBookKeeper(stageId)
+    )
+      rc.runtimeStageTaskTracker.removeStageById(stageId)
   }
 
-  override def onStageCompleted(
-      stageCompleted: SparkListenerStageCompleted
-  ): Unit = rc.runtimeStageTaskTracker.removeStage(stageCompleted)
+  override def onStageSubmitted(
+      stageSubmitted: SparkListenerStageSubmitted
+  ): Unit = {
+    val stageId = stageSubmitted.stageInfo.stageId
+    val numTasks = stageSubmitted.stageInfo.numTasks
+    rc.runtimeStageTaskTracker.numTasksBookKeeper.update(stageId, numTasks)
+  }
 
   override def onOtherEvent(event: SparkListenerEvent): Unit = {
 

@@ -8,27 +8,30 @@ import scala.collection.mutable
 
 class RuntimeStageTaskTracker {
 
+  val numTasksBookKeeper: mutable.Map[Int, Int] = mutable.Map()
   val startedTasksNumTracker: mutable.Map[Int, Int] = mutable.Map()
   val taskMetricsMap
       : mutable.Map[Int, mutable.Buffer[(TaskInfo, TaskMetrics)]] =
     mutable.Map()
-  val defaultProbabilities = Array(0, 0.25, 0.5, 0.75, 1.0)
+  private val defaultProbabilities = Array(0, 0.25, 0.5, 0.75, 1.0)
 
-  def removeStage(stageCompleted: SparkListenerStageCompleted): Unit = {
-    val stageId = stageCompleted.stageInfo.stageId
+  def removeStageById(stageId: Int): Unit = {
     assert(
       startedTasksNumTracker.contains(stageId) &&
-        taskMetricsMap.contains(stageId)
+        taskMetricsMap.contains(stageId) &&
+        numTasksBookKeeper.contains(stageId)
     )
     startedTasksNumTracker -= stageId
     taskMetricsMap -= stageId
+    numTasksBookKeeper -= stageId
   }
 
-  def getRuntimeStageFinishedTasksNum = taskMetricsMap.values.map(_.size).sum
+  private def getRuntimeStageFinishedTasksNum =
+    taskMetricsMap.values.map(_.size).sum
 
-  def getRuntimeStageStartedTasksNum = startedTasksNumTracker.values.sum
+  private def getRuntimeStageStartedTasksNum = startedTasksNumTracker.values.sum
 
-  def getRuntimeStageRunningTasksNum =
+  private def getRuntimeStageRunningTasksNum =
     getRuntimeStageStartedTasksNum - getRuntimeStageFinishedTasksNum
 
   def getRuntimeStageFinishedTasksTotalTimeInMs: Double = {
@@ -45,7 +48,7 @@ class RuntimeStageTaskTracker {
   ) = {
     math.min((p * length).toInt + startIdx, endIdx - 1)
   }
-  def getRuntimeStageFinishedTasksDistributionInMs = {
+  private def getRuntimeStageFinishedTasksDistributionInMs = {
     val durationInMsList =
       taskMetricsMap.values.flatten.map(_._1.duration.toDouble).toSeq.sorted
     val startIdx = 0
@@ -57,7 +60,7 @@ class RuntimeStageTaskTracker {
     else
       defaultProbabilities.toIndexedSeq.map(_ => 0.0)
   }
-  def snapshot() = {
+  def snapshot(): RunningQueryStageSnapshot = {
     RunningQueryStageSnapshot(
       getRuntimeStageRunningTasksNum,
       getRuntimeStageFinishedTasksNum,
