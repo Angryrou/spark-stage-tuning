@@ -5,6 +5,7 @@ import edu.polytechnique.cedar.spark.listeners.{
   UDAOQueryExecutionListener,
   UDAOSparkListener
 }
+import edu.polytechnique.cedar.spark.sql.component.F
 import edu.polytechnique.cedar.spark.sql.component.collectors.{
   InitialCollector,
   RuntimeCollector
@@ -162,6 +163,10 @@ object RunTemplateQueryForRuntimeTaskB {
 
     println(s"run ${queryLocationHeader}/${tid}/${tid}-${qid}.sql")
     println(queryContent)
+
+    initialCollector.lqpMap += ("collect" -> F.exposeLQP(
+      spark.sql(queryContent).queryExecution.optimizedPlan
+    ))
     spark.sql(queryContent).collect()
     spark.close()
 
