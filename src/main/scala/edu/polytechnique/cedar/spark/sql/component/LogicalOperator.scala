@@ -8,7 +8,7 @@ case class LogicalOperator(plan: LogicalPlan) extends MyUnit {
 
   private val predicate: String =
     plan.verboseStringWithOperatorId().replace("\n", " ")
-  val sign: Int = predicate.hashCode()
+  val sign: Int = plan.treeString.hashCode()
   val name: String = plan.nodeName
   private val json = ("sign" -> sign) ~
     ("className" -> plan.getClass.getName) ~
