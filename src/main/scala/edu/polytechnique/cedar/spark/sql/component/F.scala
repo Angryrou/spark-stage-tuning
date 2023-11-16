@@ -138,4 +138,63 @@ object F {
     } else plan.children.map(sumLogicalPlanRowCount).sum
   }
 
+  private val runtimeKnobsDict = Map(
+    "theta_c" -> Seq(
+      /* context parameters (theta_c) */
+      "spark.executor.memory", // k1
+      "spark.executor.cores", // k2
+      "spark.executor.instances", // k3
+      "spark.default.parallelism", // k4
+      "spark.reducer.maxSizeInFlight", // k5
+      "spark.shuffle.sort.bypassMergeThreshold", // k6
+      "spark.shuffle.compress", // k7
+      "spark.memory.fraction" // k8
+    ),
+    "theta_p" -> Seq(
+      /* logical query plan (LQP) parameters (theta_p) */
+      "spark.sql.adaptive.advisoryPartitionSizeInBytes", // s1
+      "spark.sql.adaptive.nonEmptyPartitionRatioForBroadcastJoin", // s2
+      "spark.sql.adaptive.maxShuffledHashJoinLocalMapThreshold", // s3
+      "spark.sql.adaptive.autoBroadcastJoinThreshold", // s4
+      "spark.sql.shuffle.partitions", // s5
+      "spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes", // s6
+      "spark.sql.adaptive.skewJoin.skewedPartitionFactor", // s7
+      "spark.sql.files.maxPartitionBytes", // s8
+      "spark.sql.files.openCostInBytes" // s9
+    ),
+    "theta_s" -> Seq(
+      /* query stage (QS) parameters (theta_s) */
+      "spark.sql.adaptive.rebalancePartitionsSmallPartitionFactor", // s10
+      "spark.sql.adaptive.coalescePartitions.minPartitionSize" // s11
+    )
+  )
+  private def getConfiguration(
+      spark: SparkSession,
+      theta_type: String
+  ): Array[(String, String)] = {
+    assert(runtimeKnobsDict.contains(theta_type))
+    val runtimeKnobList: mutable.ArrayBuffer[(String, String)] =
+      mutable.ArrayBuffer()
+    for (k <- runtimeKnobsDict(theta_type)) {
+      runtimeKnobList += ((k, spark.conf.getOption(k).getOrElse("not found")))
+    }
+    runtimeKnobList.toArray
+  }
+
+  def getRuntimeConfiguration(
+      spark: SparkSession
+  ): Map[String, Array[(String, String)]] =
+    Map(
+      "theta_p" -> getConfiguration(spark, "theta_p"),
+      "theta_s" -> getConfiguration(spark, "theta_s")
+    )
+
+  def getAllConfiguration(
+      spark: SparkSession
+  ): Map[String, Array[(String, String)]] =
+    Map(
+      "theta_c" -> getConfiguration(spark, "theta_c"),
+      "theta_p" -> getConfiguration(spark, "theta_p"),
+      "theta_s" -> getConfiguration(spark, "theta_s")
+    )
 }
