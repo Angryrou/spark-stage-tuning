@@ -10,7 +10,10 @@ import edu.polytechnique.cedar.spark.sql.component.collectors.{
   InitialCollector,
   RuntimeCollector
 }
-import edu.polytechnique.cedar.spark.sql.extensions.ExposeRuntimeLogicalPlan
+import edu.polytechnique.cedar.spark.sql.extensions.{
+  ExposeRuntimeLogicalPlan,
+  ExposeRuntimeQueryStage
+}
 import org.apache.spark.sql.SparkSession
 
 import java.io.PrintWriter
@@ -97,6 +100,9 @@ object RunTemplateQueryForRuntime {
           extensions.injectRuntimeOptimizerPrefixRule(
             ExposeRuntimeLogicalPlan(_, runtimeCollector, config.localDebug)
           )
+          extensions.injectQueryStageOptimizerPrefixRule(
+            ExposeRuntimeQueryStage(_, runtimeCollector, config.localDebug)
+          )
         }
         .enableHiveSupport()
         .getOrCreate()
@@ -106,6 +112,9 @@ object RunTemplateQueryForRuntime {
         .withExtensions { extensions =>
           extensions.injectRuntimeOptimizerPrefixRule(
             ExposeRuntimeLogicalPlan(_, runtimeCollector, config.localDebug)
+          )
+          extensions.injectQueryStageOptimizerPrefixRule(
+            ExposeRuntimeQueryStage(_, runtimeCollector, config.localDebug)
           )
         }
         .enableHiveSupport()

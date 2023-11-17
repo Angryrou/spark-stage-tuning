@@ -9,8 +9,17 @@ import org.apache.spark.sql.catalyst.plans.logical.{
   UnaryNode
 }
 import org.apache.spark.sql.execution.datasources.LogicalRelation
-import org.apache.spark.sql.execution.SQLExecution
-import org.apache.spark.sql.execution.adaptive.LogicalQueryStage
+import org.apache.spark.sql.execution.{
+  BinaryExecNode,
+  LeafExecNode,
+  SQLExecution,
+  SparkPlan,
+  UnaryExecNode
+}
+import org.apache.spark.sql.execution.adaptive.{
+  LogicalQueryStage,
+  QueryStageExec
+}
 
 import scala.collection.mutable
 import java.util.concurrent.atomic.AtomicInteger
@@ -24,16 +33,32 @@ object F {
       .map(_.toLong)
   }
 
-  def traverseLogical(
+  private def traverseLogical(
       plan: LogicalPlan,
       operators: mutable.TreeMap[Int, LogicalOperator],
       links: mutable.ArrayBuffer[Link],
       signToOpId: mutable.TreeMap[Int, Int],
       linkType: LinkType.LinkType,
       rootId: Int,
-      nextOpId: AtomicInteger
+      nextOpId: AtomicInteger,
+      globalSigns: Option[
+        mutable.Set[Int]
+      ] // when globalSigns is defined, logical query plan for QS will not have overlaps.
   ): Unit = {
     val logicalOperator = LogicalOperator(plan)
+
+    if (globalSigns.isDefined) {
+      // when exposing logical query plan for QS, we do not want to have overlaps.
+      if (!globalSigns.get.contains(logicalOperator.sign))
+        globalSigns.get += logicalOperator.sign
+      else {
+        println(
+          f"logicalOperator.sign=${logicalOperator.sign} is already in globalSigns as ${logicalOperator.name}"
+        )
+        return
+      }
+    }
+
     if (!signToOpId.contains(logicalOperator.sign)) {
       val localOpId = nextOpId.getAndIncrement()
       signToOpId += (logicalOperator.sign -> localOpId)
@@ -47,7 +72,8 @@ object F {
             signToOpId,
             LinkType.Operator,
             localOpId,
-            nextOpId
+            nextOpId,
+            globalSigns
           )
         case p: BinaryNode =>
           p.children.foreach(
@@ -58,7 +84,8 @@ object F {
               signToOpId,
               LinkType.Operator,
               localOpId,
-              nextOpId
+              nextOpId,
+              globalSigns
             )
           )
         case _: LeafNode =>
@@ -72,7 +99,8 @@ object F {
           signToOpId,
           LinkType.Subquery,
           localOpId,
-          nextOpId
+          nextOpId,
+          globalSigns
         )
       )
     }
@@ -89,7 +117,93 @@ object F {
     }
   }
 
-  def exposeLQP(plan: LogicalPlan): LQPUnit = {
+  private def traversePhysical(
+      plan: SparkPlan,
+      operators: mutable.TreeMap[Int, PhysicalOperator],
+      links: mutable.ArrayBuffer[Link],
+      signToOpId: mutable.TreeMap[Int, Int],
+      linkType: LinkType.LinkType,
+      rootId: Int,
+      nextOpId: AtomicInteger,
+      globalSigns: Option[mutable.Set[Int]]
+  ): Unit = {
+    val physicalOperator = PhysicalOperator(plan)
+
+    if (globalSigns.isDefined) {
+      // when exposing logical query plan for QS, we do not want to have overlaps.
+      if (!globalSigns.get.contains(physicalOperator.sign))
+        globalSigns.get += physicalOperator.sign
+      else {
+        println(
+          f"physicalOperator.sign=${physicalOperator.sign} is already in globalSigns as ${physicalOperator.name}"
+        )
+        return
+      }
+    }
+
+    if (!signToOpId.contains(physicalOperator.sign)) {
+      val localOpId = nextOpId.getAndIncrement()
+      signToOpId += (physicalOperator.sign -> localOpId)
+      operators += (localOpId -> physicalOperator)
+      plan match {
+        case _: QueryStageExec =>
+        case p: UnaryExecNode =>
+          traversePhysical(
+            p.child,
+            operators,
+            links,
+            signToOpId,
+            LinkType.Operator,
+            localOpId,
+            nextOpId,
+            globalSigns
+          )
+        case p: BinaryExecNode =>
+          p.children.foreach(
+            traversePhysical(
+              _,
+              operators,
+              links,
+              signToOpId,
+              LinkType.Operator,
+              localOpId,
+              nextOpId,
+              globalSigns
+            )
+          )
+        case _: LeafExecNode =>
+        case _               => throw new Exception("sth wrong")
+      }
+//      plan.subqueries.foreach(
+//        traversePhysical(
+//          _,
+//          operators,
+//          links,
+//          signToOpId,
+//          LinkType.Subquery,
+//          localOpId,
+//          nextOpId,
+//          globalSigns
+//        )
+//      )
+    }
+    if (rootId != -1) {
+      links.append(
+        Link(
+          signToOpId(physicalOperator.sign),
+          physicalOperator.name,
+          rootId,
+          operators(rootId).name,
+          linkType
+        )
+      )
+    }
+  }
+
+  def exposeLQP(
+      plan: LogicalPlan,
+      globalSigns: Option[mutable.Set[Int]] = None
+  ): LQPUnit = {
     val operators = mutable.TreeMap[Int, LogicalOperator]()
     val links = mutable.ArrayBuffer[Link]()
     val signToOpId = mutable.TreeMap[Int, Int]()
@@ -100,7 +214,8 @@ object F {
       signToOpId,
       LinkType.Operator,
       -1,
-      new AtomicInteger(0)
+      new AtomicInteger(0),
+      globalSigns = globalSigns
     )
     val logicalPlanMetrics = LogicalPlanMetrics(
       operators = operators.toMap,
@@ -114,6 +229,41 @@ object F {
     )
 
     LQPUnit(logicalPlanMetrics, inputMetaInfo)
+  }
+
+  def exposeQS(
+      plan: SparkPlan,
+      globalLogicalSigns: Option[mutable.Set[Int]] = None,
+      globalPhysicalSigns: Option[mutable.Set[Int]] = None
+  ): QSUnit = {
+    val lgPlan = plan.logicalLink
+    assert(lgPlan.isDefined && globalLogicalSigns.isDefined)
+    val lqpUnit = exposeLQP(lgPlan.get, globalLogicalSigns)
+
+    val operators = mutable.TreeMap[Int, PhysicalOperator]()
+    val links = mutable.ArrayBuffer[Link]()
+    val signToOpId = mutable.TreeMap[Int, Int]()
+    F.traversePhysical(
+      plan,
+      operators,
+      links,
+      signToOpId,
+      LinkType.Operator,
+      -1,
+      new AtomicInteger(0),
+      globalPhysicalSigns
+    )
+    val physicalPlanMetrics = PhysicalPlanMetrics(
+      operators = operators.toMap,
+      links = links,
+      rawPlan = plan.toString()
+    )
+
+    QSUnit(
+      logicalPlanMetrics = lqpUnit.logicalPlanMetrics,
+      physicalPlanMetrics = physicalPlanMetrics,
+      inputMetaInfo = lqpUnit.inputMetaInfo
+    )
   }
 
   def sumLogicalPlanSizeInBytes(plan: LogicalPlan): BigInt = {

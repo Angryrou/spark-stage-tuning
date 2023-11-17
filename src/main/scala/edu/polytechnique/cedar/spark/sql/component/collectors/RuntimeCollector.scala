@@ -14,7 +14,8 @@ import scala.collection.mutable
 class RuntimeCollector() {
 
   private val lqpId: AtomicInteger = new AtomicInteger(1)
-  val lqpMap: mutable.Map[Int, LQPUnit] = mutable.TreeMap[Int, LQPUnit]()
+  private val lqpMap: mutable.Map[Int, LQPUnit] =
+    mutable.TreeMap[Int, LQPUnit]()
   private val lqpStartTimeInMsMap: mutable.Map[Int, Long] =
     mutable.TreeMap[Int, Long]()
   private val lqpSnapshot: mutable.Map[Int, RunningQueryStageSnapshot] =
@@ -26,13 +27,20 @@ class RuntimeCollector() {
   private var sqlStartTimeInMs: Long = -1
   private var sqlEndTimeInMs: Long = -1
 
-  val qsId: AtomicInteger = new AtomicInteger(0)
-  val qsMap: mutable.Map[Int, QSUnit] = mutable.TreeMap[Int, QSUnit]()
-  val qsStartTimeMap: mutable.Map[Int, Long] = mutable.TreeMap[Int, Long]()
+  private val qsId: AtomicInteger = new AtomicInteger(0)
+  private val qsMap: mutable.Map[Int, QSUnit] = mutable.TreeMap[Int, QSUnit]()
+  private val qsStartTimeMap: mutable.Map[Int, Long] =
+    mutable.TreeMap[Int, Long]()
+  private val qsSnapshot: mutable.Map[Int, RunningQueryStageSnapshot] =
+    mutable.TreeMap[Int, RunningQueryStageSnapshot]()
+  private val qsThetaR: mutable.Map[Int, Map[String, Array[(String, String)]]] =
+    mutable.TreeMap[Int, Map[String, Array[(String, String)]]]()
 
   val runtimeStageTaskTracker = new RuntimeStageTaskTracker()
+  val globalLogicalSigns = Some(mutable.Set[Int]())
 
   def getLqpId: Int = lqpId.get()
+  def getQsId: Int = qsId.get()
 
   def addLQP(
       lqpUnit: LQPUnit,
@@ -48,14 +56,19 @@ class RuntimeCollector() {
     curId
   }
 
-//  def addQS(
-//      qsUnit: QSUnit,
-//      startTimeInMs: Long,
-//      snapshot: RunningQueryStageSnapshot,
-//      runtimeKnobList: Array[(String, String)]
-//  ): Int = {
-//    // theta_p,
-//  }
+  def addQS(
+      qsUnit: QSUnit,
+      startTimeInMs: Long,
+      snapshot: RunningQueryStageSnapshot,
+      runtimeKnobsDict: Map[String, Array[(String, String)]]
+  ): Int = {
+    val curId = qsId.getAndIncrement()
+    qsMap += (curId -> qsUnit)
+    qsStartTimeMap += (curId -> startTimeInMs)
+    qsSnapshot += (curId -> snapshot)
+    qsThetaR += (curId -> runtimeKnobsDict)
+    curId
+  }
 
   def setSQLStartTimeInMs(timeInMs: Long): Unit = {
     sqlStartTimeInMs = timeInMs
@@ -81,7 +94,22 @@ class RuntimeCollector() {
           ))
       )
     )
+
+    val qsMap2 = qsMap.map(x =>
+      (
+        x._1.toString,
+        x._2.json ~
+          ("RunningQueryStageSnapshot" -> qsSnapshot(x._1).toJson) ~
+          ("StartTimeInMs" -> qsStartTimeMap(x._1)) ~
+          ("DurationInMs" -> (0 - qsStartTimeMap(x._1))) ~
+          ("RuntimeConfiguration" -> qsThetaR(x._1).map(y =>
+            (y._1, y._2.toSeq)
+          ))
+      )
+    )
+
     val json = ("RuntimeLQPs" -> lqpMap2.toMap) ~
+      ("RuntimeQSs" -> qsMap2.toMap) ~
       ("SQLStartTimeInMs" -> sqlStartTimeInMs) ~
       ("SQLEndTimeInMs" -> sqlEndTimeInMs) ~
       ("SQLDurationInMs" -> (sqlEndTimeInMs - sqlStartTimeInMs))
