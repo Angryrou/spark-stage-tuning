@@ -5,6 +5,7 @@ import edu.polytechnique.cedar.spark.sql.component.{
   QSUnit,
   RunningQueryStageSnapshot
 }
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
@@ -37,7 +38,7 @@ class RuntimeCollector() {
     mutable.TreeMap[Int, Map[String, Array[(String, String)]]]()
 
   val runtimeStageTaskTracker = new RuntimeStageTaskTracker()
-  val globalLogicalSigns = Some(mutable.Set[Int]())
+  val observedLogicalQS = mutable.Set[LogicalPlan]()
 
   def getLqpId: Int = lqpId.get()
   def getQsId: Int = qsId.get()

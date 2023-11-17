@@ -1,4 +1,5 @@
 package edu.polytechnique.cedar.spark.sql.component
+
 import org.json4s.{JValue, JsonAST}
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.render

@@ -21,11 +21,12 @@ case class ExposeRuntimeQueryStage(
     )
     if (executionId.get == 1) {
       val qsId = rc.addQS(
-        qsUnit = F.exposeQS(plan, rc.globalLogicalSigns),
+        qsUnit = F.exposeQS(plan, rc.observedLogicalQS.toSet),
         startTimeInMs = F.getTimeInMs,
         snapshot = rc.runtimeStageTaskTracker.snapshot(),
         runtimeKnobsDict = F.getRuntimeConfiguration(spark)
       )
+      rc.observedLogicalQS += plan.logicalLink.get
       if (debug) {
         println(s"added runtime QS-${qsId} for execId=${executionId.get}")
       }

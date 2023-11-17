@@ -1,5 +1,6 @@
 package edu.polytechnique.cedar.spark.sql.component
-import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, Statistics}
+
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.json4s.JValue
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.render
