@@ -20,15 +20,21 @@ case class ExposeRuntimeQueryStage(
       "Assertion failed: we should not have executionId.isEmpty or executionId > 2"
     )
     if (executionId.get == 1) {
-      val qsId = rc.addQS(
-        qsUnit = F.exposeQS(plan, rc.observedLogicalQS.toSet),
-        startTimeInMs = F.getTimeInMs,
-        snapshot = rc.runtimeStageTaskTracker.snapshot(),
-        runtimeKnobsDict = F.getRuntimeConfiguration(spark)
-      )
-      rc.observedLogicalQS += plan.logicalLink.get
-      if (debug) {
-        println(s"added runtime QS-${qsId} for execId=${executionId.get}")
+      if (rc.observedLogicalQS.contains(plan.logicalLink.get)) {
+        if (debug) {
+          println("This query stage has been observed before.")
+        }
+      } else {
+        val qsId = rc.addQS(
+          qsUnit = F.exposeQS(plan, rc.observedLogicalQS.toSet),
+          startTimeInMs = F.getTimeInMs,
+          snapshot = rc.runtimeStageTaskTracker.snapshot(),
+          runtimeKnobsDict = F.getRuntimeConfiguration(spark)
+        )
+        rc.observedLogicalQS += plan.logicalLink.get
+        if (debug) {
+          println(s"added runtime QS-${qsId} for execId=${executionId.get}")
+        }
       }
     }
     plan

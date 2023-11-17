@@ -18,14 +18,9 @@ import org.apache.spark.sql.execution.{
   SparkPlan,
   UnaryExecNode
 }
-import org.apache.spark.sql.execution.adaptive.{
-  LogicalQueryStage,
-  QueryStageExec
-}
 
 import scala.collection.mutable
 import java.util.concurrent.atomic.AtomicInteger
-import scala.collection.immutable.Map
 
 object F {
 
@@ -44,7 +39,8 @@ object F {
       linkType: LinkType.LinkType,
       rootId: Int,
       nextOpId: AtomicInteger,
-      existedLQPs: Set[LogicalPlan]
+      existedLQPs: Set[LogicalPlan],
+      forQueryStage: Boolean
   ): Unit = {
     val logicalOperator = LogicalOperator(plan)
     if (existedLQPs.contains(plan)) { return }
@@ -62,7 +58,8 @@ object F {
             LinkType.Operator,
             localOpId,
             nextOpId,
-            existedLQPs
+            existedLQPs,
+            forQueryStage
           )
         case p: BinaryNode =>
           p.children.foreach(
@@ -74,24 +71,28 @@ object F {
               LinkType.Operator,
               localOpId,
               nextOpId,
-              existedLQPs
+              existedLQPs,
+              forQueryStage
             )
           )
         case _: LeafNode =>
         case _           => throw new Exception("sth wrong")
       }
-      plan.subqueries.foreach(
-        traverseLogical(
-          _,
-          operators,
-          links,
-          signToOpId,
-          LinkType.Subquery,
-          localOpId,
-          nextOpId,
-          existedLQPs
+      if (!forQueryStage) {
+        plan.subqueries.foreach(
+          traverseLogical(
+            _,
+            operators,
+            links,
+            signToOpId,
+            LinkType.Subquery,
+            localOpId,
+            nextOpId,
+            existedLQPs,
+            forQueryStage
+          )
         )
-      )
+      }
     }
     if (rootId != -1) {
       links.append(
@@ -175,12 +176,13 @@ object F {
 
   def exposeLQP(
       plan: LogicalPlan,
-      existedLQPs: Set[LogicalPlan] = Set()
+      existedLQPs: Set[LogicalPlan] = Set(),
+      forQueryStage: Boolean = false
   ): LQPUnit = {
     val operators = mutable.TreeMap[Int, LogicalOperator]()
     val links = mutable.ArrayBuffer[Link]()
     val signToOpId = mutable.TreeMap[Int, Int]()
-    F.traverseLogical(
+    traverseLogical(
       plan,
       operators,
       links,
@@ -188,7 +190,8 @@ object F {
       LinkType.Operator,
       -1,
       new AtomicInteger(0),
-      existedLQPs
+      existedLQPs,
+      forQueryStage
     )
     val logicalPlanMetrics = LogicalPlanMetrics(
       operators = operators.toMap,
@@ -209,7 +212,8 @@ object F {
       observedLQPs: Set[LogicalPlan]
   ): QSUnit = {
     assert(plan.logicalLink.isDefined)
-    val lqpQsUnit = exposeLQP(plan.logicalLink.get, observedLQPs)
+    val lqpQsUnit =
+      exposeLQP(plan.logicalLink.get, observedLQPs, forQueryStage = true)
     val operators = mutable.TreeMap[Int, PhysicalOperator]()
     val links = mutable.ArrayBuffer[Link]()
     val signToOpId = mutable.TreeMap[Int, Int]()
