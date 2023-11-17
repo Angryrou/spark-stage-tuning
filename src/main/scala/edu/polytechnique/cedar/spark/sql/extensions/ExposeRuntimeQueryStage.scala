@@ -20,7 +20,7 @@ case class ExposeRuntimeQueryStage(
       "Assertion failed: we should not have executionId.isEmpty or executionId > 2"
     )
     if (executionId.get == 1) {
-      if (rc.observedLogicalQS.contains(plan.logicalLink.get)) {
+      if (rc.observedLogicalQS.contains(plan.logicalLink.get.canonicalized)) {
         if (debug) {
           println("This query stage has been observed before.")
         }
@@ -31,7 +31,8 @@ case class ExposeRuntimeQueryStage(
           snapshot = rc.runtimeStageTaskTracker.snapshot(),
           runtimeKnobsDict = F.getRuntimeConfiguration(spark)
         )
-        rc.observedLogicalQS += plan.logicalLink.get
+
+        rc.observedLogicalQS += plan.logicalLink.get.canonicalized
         if (debug) {
           println(s"added runtime QS-${qsId} for execId=${executionId.get}")
         }

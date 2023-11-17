@@ -43,7 +43,7 @@ object F {
       forQueryStage: Boolean
   ): Unit = {
     val logicalOperator = LogicalOperator(plan)
-    if (existedLQPs.contains(plan)) { return }
+    if (existedLQPs.contains(plan.canonicalized)) { return }
     if (!signToOpId.contains(logicalOperator.sign)) {
       val localOpId = nextOpId.getAndIncrement()
       signToOpId += (logicalOperator.sign -> localOpId)
