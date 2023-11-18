@@ -10,6 +10,7 @@ import org.apache.spark.sql.catalyst.plans.logical.{
   UnaryNode
 }
 import org.apache.spark.sql.catalyst.trees.LeafLike
+import org.apache.spark.sql.execution.adaptive.ShuffleQueryStageExec
 import org.apache.spark.sql.execution.datasources.LogicalRelation
 import org.apache.spark.sql.execution.{
   BinaryExecNode,
@@ -114,7 +115,8 @@ object F {
       signToOpId: mutable.TreeMap[Int, Int],
       linkType: LinkType.LinkType,
       rootId: Int,
-      nextOpId: AtomicInteger
+      nextOpId: AtomicInteger,
+      inputPartitionDistributionMap: mutable.Map[Int, Array[Long]]
   ): Unit = {
     val physicalOperator = PhysicalOperator(plan)
 
@@ -131,7 +133,8 @@ object F {
             signToOpId,
             LinkType.Operator,
             localOpId,
-            nextOpId
+            nextOpId,
+            inputPartitionDistributionMap
           )
         case p: BinaryExecNode =>
           p.children.foreach(
@@ -142,9 +145,17 @@ object F {
               signToOpId,
               LinkType.Operator,
               localOpId,
-              nextOpId
+              nextOpId,
+              inputPartitionDistributionMap
             )
           )
+        case sqs: ShuffleQueryStageExec =>
+          val shuffleId = sqs.mapStats.get.shuffleId
+          val bytesByPartitionId: Array[Long] = sqs.mapStats match {
+            case Some(ms) => ms.bytesByPartitionId
+            case None     => Array[Long]()
+          }
+          inputPartitionDistributionMap += (shuffleId -> bytesByPartitionId)
         case _: LeafExecNode =>
         case _               => throw new Exception("sth wrong")
       }
@@ -217,6 +228,7 @@ object F {
     val operators = mutable.TreeMap[Int, PhysicalOperator]()
     val links = mutable.ArrayBuffer[Link]()
     val signToOpId = mutable.TreeMap[Int, Int]()
+    val inputPartitionDistributionMap = mutable.Map[Int, Array[Long]]()
     F.traversePhysical(
       plan,
       operators,
@@ -224,7 +236,8 @@ object F {
       signToOpId,
       LinkType.Operator,
       -1,
-      new AtomicInteger(0)
+      new AtomicInteger(0),
+      inputPartitionDistributionMap
     )
     val physicalPlanMetrics = PhysicalPlanMetrics(
       operators = operators.toMap,
@@ -238,7 +251,8 @@ object F {
       inputMetaInfo = InputMetaInfo(
         inputSizeInBytes = F.sumPhysicalPlanSizeInBytes(plan),
         inputRowCount = F.sumPhysicalPlanRowCount(plan)
-      )
+      ),
+      partitionDistribution = inputPartitionDistributionMap.toMap
     )
   }
 
