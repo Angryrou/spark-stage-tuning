@@ -8,13 +8,15 @@ case class QSUnit(
     logicalPlanMetrics: LogicalPlanMetrics,
     physicalPlanMetrics: PhysicalPlanMetrics,
     inputMetaInfo: InputMetaInfo,
-    partitionDistribution: Map[Int, Array[Long]]
+    mapPartitionDistributionDict: Map[Int, Array[Long]]
 ) extends MyUnit {
 
   val json: JsonAST.JObject = ("QSLogical" -> logicalPlanMetrics.toJson) ~
     ("QSPhysical" -> physicalPlanMetrics.toJson) ~
     ("IM" -> inputMetaInfo.toJson) ~
-    ("PD" -> partitionDistribution.map(x => (x._1.toString, x._2.toList)))
+    ("PD" -> mapPartitionDistributionDict.map(x =>
+      (x._1.toString, x._2.toList)
+    ))
 
   override def toJson: JValue = render(json)
 }

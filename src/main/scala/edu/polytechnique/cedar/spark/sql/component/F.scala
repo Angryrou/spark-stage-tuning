@@ -1,17 +1,16 @@
 package edu.polytechnique.cedar.spark.sql.component
 
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.catalyst.plans.QueryPlan
 import org.apache.spark.sql.catalyst.plans.logical.{
   BinaryNode,
   LeafNode,
-  LocalRelation,
   LogicalPlan,
   UnaryNode
 }
-import org.apache.spark.sql.catalyst.trees.LeafLike
-import org.apache.spark.sql.execution.adaptive.ShuffleQueryStageExec
-import org.apache.spark.sql.execution.datasources.LogicalRelation
+import org.apache.spark.sql.execution.adaptive.{
+  LogicalQueryStage,
+  ShuffleQueryStageExec
+}
 import org.apache.spark.sql.execution.{
   BinaryExecNode,
   LeafExecNode,
@@ -40,11 +39,13 @@ object F {
       linkType: LinkType.LinkType,
       rootId: Int,
       nextOpId: AtomicInteger,
+      mapPartitionDistributionDict: mutable.Map[Int, Array[Long]],
       existedLQPs: Set[LogicalPlan],
       forQueryStage: Boolean
   ): Unit = {
     val logicalOperator = LogicalOperator(plan)
     if (existedLQPs.contains(plan.canonicalized)) { return }
+
     if (!signToOpId.contains(logicalOperator.sign)) {
       val localOpId = nextOpId.getAndIncrement()
       signToOpId += (logicalOperator.sign -> localOpId)
@@ -59,6 +60,7 @@ object F {
             LinkType.Operator,
             localOpId,
             nextOpId,
+            mapPartitionDistributionDict,
             existedLQPs,
             forQueryStage
           )
@@ -72,10 +74,22 @@ object F {
               LinkType.Operator,
               localOpId,
               nextOpId,
+              mapPartitionDistributionDict,
               existedLQPs,
               forQueryStage
             )
           )
+        case lqs: LogicalQueryStage =>
+          lqs.physicalPlan match {
+            case sqs: ShuffleQueryStageExec =>
+              val shuffleId = sqs.mapStats.get.shuffleId
+              val bytesByPartitionId: Array[Long] = sqs.mapStats match {
+                case Some(ms) => ms.bytesByPartitionId
+                case None     => Array[Long]()
+              }
+              mapPartitionDistributionDict += (shuffleId -> bytesByPartitionId)
+            case _ =>
+          }
         case _: LeafNode =>
         case _           => throw new Exception("sth wrong")
       }
@@ -89,6 +103,7 @@ object F {
             LinkType.Subquery,
             localOpId,
             nextOpId,
+            mapPartitionDistributionDict,
             existedLQPs,
             forQueryStage
           )
@@ -116,7 +131,7 @@ object F {
       linkType: LinkType.LinkType,
       rootId: Int,
       nextOpId: AtomicInteger,
-      inputPartitionDistributionMap: mutable.Map[Int, Array[Long]]
+      mapPartitionDistributionDict: mutable.Map[Int, Array[Long]]
   ): Unit = {
     val physicalOperator = PhysicalOperator(plan)
 
@@ -134,7 +149,7 @@ object F {
             LinkType.Operator,
             localOpId,
             nextOpId,
-            inputPartitionDistributionMap
+            mapPartitionDistributionDict
           )
         case p: BinaryExecNode =>
           p.children.foreach(
@@ -146,7 +161,7 @@ object F {
               LinkType.Operator,
               localOpId,
               nextOpId,
-              inputPartitionDistributionMap
+              mapPartitionDistributionDict
             )
           )
         case sqs: ShuffleQueryStageExec =>
@@ -155,7 +170,7 @@ object F {
             case Some(ms) => ms.bytesByPartitionId
             case None     => Array[Long]()
           }
-          inputPartitionDistributionMap += (shuffleId -> bytesByPartitionId)
+          mapPartitionDistributionDict += (shuffleId -> bytesByPartitionId)
         case _: LeafExecNode =>
         case _               => throw new Exception("sth wrong")
       }
@@ -193,6 +208,7 @@ object F {
     val operators = mutable.TreeMap[Int, LogicalOperator]()
     val links = mutable.ArrayBuffer[Link]()
     val signToOpId = mutable.TreeMap[Int, Int]()
+    val mapPartitionDistributionDict = mutable.Map[Int, Array[Long]]()
     traverseLogical(
       plan,
       operators,
@@ -201,6 +217,7 @@ object F {
       LinkType.Operator,
       -1,
       new AtomicInteger(0),
+      mapPartitionDistributionDict,
       existedLQPs,
       forQueryStage
     )
@@ -215,7 +232,11 @@ object F {
       inputRowCount = F.sumLogicalPlanRowCount(plan)
     )
 
-    LQPUnit(logicalPlanMetrics, inputMetaInfo)
+    LQPUnit(
+      logicalPlanMetrics,
+      inputMetaInfo,
+      mapPartitionDistributionDict.toMap
+    )
   }
 
   def exposeQS(
@@ -228,7 +249,7 @@ object F {
     val operators = mutable.TreeMap[Int, PhysicalOperator]()
     val links = mutable.ArrayBuffer[Link]()
     val signToOpId = mutable.TreeMap[Int, Int]()
-    val inputPartitionDistributionMap = mutable.Map[Int, Array[Long]]()
+    val mapPartitionDistributionDict = mutable.Map[Int, Array[Long]]()
     F.traversePhysical(
       plan,
       operators,
@@ -237,7 +258,7 @@ object F {
       LinkType.Operator,
       -1,
       new AtomicInteger(0),
-      inputPartitionDistributionMap
+      mapPartitionDistributionDict
     )
     val physicalPlanMetrics = PhysicalPlanMetrics(
       operators = operators.toMap,
@@ -252,7 +273,7 @@ object F {
         inputSizeInBytes = F.sumPhysicalPlanSizeInBytes(plan),
         inputRowCount = F.sumPhysicalPlanRowCount(plan)
       ),
-      partitionDistribution = inputPartitionDistributionMap.toMap
+      mapPartitionDistributionDict = mapPartitionDistributionDict.toMap
     )
   }
 
