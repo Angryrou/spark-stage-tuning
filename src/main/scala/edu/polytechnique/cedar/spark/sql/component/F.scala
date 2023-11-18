@@ -9,6 +9,7 @@ import org.apache.spark.sql.catalyst.plans.logical.{
 }
 import org.apache.spark.sql.execution.adaptive.{
   LogicalQueryStage,
+  QueryStageExec,
   ShuffleQueryStageExec
 }
 import org.apache.spark.sql.execution.{
@@ -293,15 +294,17 @@ object F {
 
   def sumPhysicalPlanSizeInBytes(plan: SparkPlan): BigInt = {
     plan match {
-      case p: LeafExecNode => p.logicalLink.get.stats.sizeInBytes
-      case p: SparkPlan    => p.children.map(sumPhysicalPlanSizeInBytes).sum
+      case p: QueryStageExec => p.getRuntimeStatistics.sizeInBytes
+      case p: LeafExecNode   => p.logicalLink.get.stats.sizeInBytes
+      case p: SparkPlan      => p.children.map(sumPhysicalPlanSizeInBytes).sum
     }
   }
 
   def sumPhysicalPlanRowCount(plan: SparkPlan): BigInt = {
     plan match {
-      case p: LeafExecNode => p.logicalLink.get.stats.rowCount.getOrElse(0)
-      case p: SparkPlan    => p.children.map(sumPhysicalPlanRowCount).sum
+      case p: QueryStageExec => p.getRuntimeStatistics.rowCount.getOrElse(0)
+      case p: LeafExecNode   => p.logicalLink.get.stats.rowCount.getOrElse(0)
+      case p: SparkPlan      => p.children.map(sumPhysicalPlanRowCount).sum
     }
   }
 
