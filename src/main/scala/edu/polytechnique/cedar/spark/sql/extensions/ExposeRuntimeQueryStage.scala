@@ -21,12 +21,12 @@ case class ExposeRuntimeQueryStage(
     )
     if (executionId.get == 1) {
       if (rc.observedLogicalQS.contains(plan.logicalLink.get.canonicalized)) {
-        if (debug) {
+        if (debug)
           println("This query stage has been observed before.")
-        }
       } else {
         if (rc.observedPhysicalQS.contains(plan.canonicalized)) {
-          println("This query stage can be reused.")
+          if (debug)
+            println("This query stage can be reused.")
         } else {
           val qsId = rc.addQS(
             qsUnit = F.exposeQS(plan, rc.observedLogicalQS.toSet),

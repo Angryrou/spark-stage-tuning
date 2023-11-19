@@ -5,7 +5,8 @@ import org.apache.spark.sql.catalyst.plans.logical.{
   BinaryNode,
   LeafNode,
   LogicalPlan,
-  UnaryNode
+  UnaryNode,
+  Union
 }
 import org.apache.spark.sql.execution.adaptive.{
   LogicalQueryStage,
@@ -17,7 +18,8 @@ import org.apache.spark.sql.execution.{
   LeafExecNode,
   SQLExecution,
   SparkPlan,
-  UnaryExecNode
+  UnaryExecNode,
+  UnionExec
 }
 
 import scala.collection.mutable
@@ -94,7 +96,22 @@ object F {
             case _ =>
           }
         case _: LeafNode =>
-        case _           => throw new Exception("sth wrong")
+        case u: Union =>
+          u.children.foreach(
+            traverseLogical(
+              _,
+              operators,
+              links,
+              signToOpId,
+              LinkType.Operator,
+              localOpId,
+              nextOpId,
+              mapPartitionDistributionDict,
+              existedLQPs,
+              forQueryStage
+            )
+          )
+        case _ => throw new Exception("sth wrong")
       }
       if (!forQueryStage) {
         plan.subqueries.foreach(
@@ -176,7 +193,20 @@ object F {
           }
           mapPartitionDistributionDict += (shuffleId -> bytesByPartitionId)
         case _: LeafExecNode =>
-        case _               => throw new Exception("sth wrong")
+        case u: UnionExec =>
+          u.children.foreach(
+            traversePhysical(
+              _,
+              operators,
+              links,
+              signToOpId,
+              LinkType.Operator,
+              localOpId,
+              nextOpId,
+              mapPartitionDistributionDict
+            )
+          )
+        case _ => throw new Exception("sth wrong")
       }
 //      plan.subqueries.foreach(
 //        traversePhysical(
