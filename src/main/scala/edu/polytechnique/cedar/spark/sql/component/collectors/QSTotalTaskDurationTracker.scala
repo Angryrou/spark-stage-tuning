@@ -21,7 +21,8 @@ class QSTotalTaskDurationTracker {
       val durationInMs = endTime - startTime
       val totalTasksDurationInMs =
         stageIds.map(stageTotalTasksDurationDict(_)).sum
-      val qSResultTimes = QSResultTimes(durationInMs, totalTasksDurationInMs)
+      val qSResultTimes =
+        QSResultTimes(durationInMs, totalTasksDurationInMs, stageIds)
       rootRddId2QSResultTimes += (rootRddIds -> qSResultTimes)
     }
     rootRddId2QSResultTimes

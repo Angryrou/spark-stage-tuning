@@ -113,6 +113,8 @@ class RuntimeCollector() {
           ("DurationInMs" -> qsId2QSResultTimes(x._1).DurationInMs) ~
           ("TotalTaskDurationInMs" ->
             qsId2QSResultTimes(x._1).totalTasksDurationInMs) ~
+          ("RelevantStageIds" ->
+            qsId2QSResultTimes(x._1).relevantStageIds.toList) ~
           ("RuntimeConfiguration" -> qsThetaR(x._1).map(y =>
             (y._1, y._2.toSeq)
           ))
