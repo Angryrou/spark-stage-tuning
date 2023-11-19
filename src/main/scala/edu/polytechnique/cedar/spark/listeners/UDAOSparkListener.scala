@@ -1,10 +1,12 @@
 package edu.polytechnique.cedar.spark.listeners
 
 import edu.polytechnique.cedar.spark.sql.component.collectors.RuntimeCollector
+import org.apache.spark.SparkContext
 import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.scheduler.{
   SparkListener,
   SparkListenerEvent,
+  SparkListenerJobStart,
   SparkListenerStageCompleted,
   SparkListenerStageSubmitted,
   SparkListenerTaskEnd,
@@ -64,6 +66,16 @@ case class UDAOSparkListener(rc: RuntimeCollector, debug: Boolean)
       rc.runtimeStageTaskTracker.removeStageById(stageId)
   }
 
+  override def onJobStart(
+      jobStart: SparkListenerJobStart
+  ): Unit = {
+    val desc =
+      jobStart.properties.getProperty("spark.job.description")
+    if (desc != null && desc.contains("Listing leaf files and directories")) {
+      rc.qsTotalTaskDurationTracker.listLeafStageIds ++= jobStart.stageIds
+    }
+  }
+
   override def onStageSubmitted(
       stageSubmitted: SparkListenerStageSubmitted
   ): Unit = {
@@ -76,16 +88,24 @@ case class UDAOSparkListener(rc: RuntimeCollector, debug: Boolean)
       stageCompleted: SparkListenerStageCompleted
   ): Unit = {
     val stageId = stageCompleted.stageInfo.stageId
-    val minRddId = stageCompleted.stageInfo.rddInfos.map(_.id).min
-    val rootRdd =
-      stageCompleted.stageInfo.rddInfos.filter(_.id == minRddId).head.id
-    rc.qsTotalTaskDurationTracker.rootRddId2StageIds.get(rootRdd) match {
-      case Some(v) =>
-        rc.qsTotalTaskDurationTracker.rootRddId2StageIds
-          .update(rootRdd, v :+ stageId)
-      case None =>
-        rc.qsTotalTaskDurationTracker.rootRddId2StageIds
-          .update(rootRdd, Array(stageId))
+    if (rc.qsTotalTaskDurationTracker.listLeafStageIds.contains(stageId)) {
+      if (debug) {
+        println(
+          s"bypass stageId=${stageId} because it is a list-leaf-files-and-directories stage"
+        )
+      }
+    } else {
+      val minRddId = stageCompleted.stageInfo.rddInfos.map(_.id).min
+      val rootRdd =
+        stageCompleted.stageInfo.rddInfos.filter(_.id == minRddId).head.id
+      rc.qsTotalTaskDurationTracker.rootRddId2StageIds.get(rootRdd) match {
+        case Some(v) =>
+          rc.qsTotalTaskDurationTracker.rootRddId2StageIds
+            .update(rootRdd, v :+ stageId)
+        case None =>
+          rc.qsTotalTaskDurationTracker.rootRddId2StageIds
+            .update(rootRdd, Array(stageId))
+      }
     }
   }
 

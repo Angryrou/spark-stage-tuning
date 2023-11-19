@@ -110,6 +110,11 @@ class RuntimeCollector() {
       )
     )
 
+    assert(
+      qsMap.size == qsTotalTaskDurationTracker.rootRddId2StageIds.size,
+      s"Assertion failed: ${qsMap.size} != ${qsTotalTaskDurationTracker.rootRddId2StageIds.size}"
+    )
+
     val json = ("RuntimeLQPs" -> lqpMap2.toMap) ~
       ("RuntimeQSs" -> qsMap2.toMap) ~
       ("SQLStartTimeInMs" -> sqlStartTimeInMs) ~
