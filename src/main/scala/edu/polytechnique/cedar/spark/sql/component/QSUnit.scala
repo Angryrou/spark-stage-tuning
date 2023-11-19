@@ -8,12 +8,14 @@ case class QSUnit(
     logicalPlanMetrics: LogicalPlanMetrics,
     physicalPlanMetrics: PhysicalPlanMetrics,
     inputMetaInfo: InputMetaInfo,
+    initialPartitionNum: Int,
     mapPartitionDistributionDict: Map[Int, Array[Long]]
 ) extends MyUnit {
 
   val json: JsonAST.JObject = ("QSLogical" -> logicalPlanMetrics.toJson) ~
     ("QSPhysical" -> physicalPlanMetrics.toJson) ~
     ("IM" -> inputMetaInfo.toJson) ~
+    ("InitialPartitionNum" -> initialPartitionNum) ~
     ("PD" -> mapPartitionDistributionDict.map(x =>
       (x._1.toString, x._2.toList)
     ))

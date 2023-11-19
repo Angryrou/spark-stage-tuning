@@ -277,6 +277,7 @@ object F {
         inputSizeInBytes = F.sumPhysicalPlanSizeInBytes(plan),
         inputRowCount = F.sumPhysicalPlanRowCount(plan)
       ),
+      initialPartitionNum = plan.outputPartitioning.numPartitions,
       mapPartitionDistributionDict = mapPartitionDistributionDict.toMap
     )
   }

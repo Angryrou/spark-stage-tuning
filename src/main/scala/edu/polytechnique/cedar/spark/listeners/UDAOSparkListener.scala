@@ -23,6 +23,57 @@ import scala.collection.mutable
 case class UDAOSparkListener(rc: RuntimeCollector, debug: Boolean)
     extends SparkListener {
 
+  override def onJobStart(
+      jobStart: SparkListenerJobStart
+  ): Unit = {
+    val desc =
+      jobStart.properties.getProperty("spark.job.description")
+    if (desc != null && desc.contains("Listing leaf files and directories")) {
+      rc.qsTotalTaskDurationTracker.listLeafStageIds ++= jobStart.stageIds
+    }
+  }
+
+  override def onStageSubmitted(
+      stageSubmitted: SparkListenerStageSubmitted
+  ): Unit = {
+    val stageId = stageSubmitted.stageInfo.stageId
+    val numTasks = stageSubmitted.stageInfo.numTasks
+    rc.runtimeStageTaskTracker.numTasksBookKeeper.update(stageId, numTasks)
+  }
+
+  override def onStageCompleted(
+      stageCompleted: SparkListenerStageCompleted
+  ): Unit = {
+    val stageId = stageCompleted.stageInfo.stageId
+    if (rc.qsTotalTaskDurationTracker.listLeafStageIds.contains(stageId)) {
+      if (debug) {
+        println(
+          s"bypass stageId=${stageId} because it is a list-leaf-files-and-directories stage"
+        )
+      }
+    } else {
+      val minRddId = stageCompleted.stageInfo.rddInfos.map(_.id).min
+      val rootRdd =
+        stageCompleted.stageInfo.rddInfos.filter(_.id == minRddId).head.id
+      rc.qsTotalTaskDurationTracker.stageStartEndTimeDict
+        .update(
+          stageId,
+          (
+            stageCompleted.stageInfo.submissionTime.get,
+            stageCompleted.stageInfo.completionTime.get
+          )
+        )
+      rc.qsTotalTaskDurationTracker.rootRddId2StageIds.get(rootRdd) match {
+        case Some(v) =>
+          rc.qsTotalTaskDurationTracker.rootRddId2StageIds
+            .update(rootRdd, v :+ stageId)
+        case None =>
+          rc.qsTotalTaskDurationTracker.rootRddId2StageIds
+            .update(rootRdd, Array(stageId))
+      }
+    }
+  }
+
   override def onTaskStart(
       taskStart: SparkListenerTaskStart
   ): Unit = {
@@ -64,49 +115,6 @@ case class UDAOSparkListener(rc: RuntimeCollector, debug: Boolean)
         rc.runtimeStageTaskTracker.numTasksBookKeeper(stageId)
     )
       rc.runtimeStageTaskTracker.removeStageById(stageId)
-  }
-
-  override def onJobStart(
-      jobStart: SparkListenerJobStart
-  ): Unit = {
-    val desc =
-      jobStart.properties.getProperty("spark.job.description")
-    if (desc != null && desc.contains("Listing leaf files and directories")) {
-      rc.qsTotalTaskDurationTracker.listLeafStageIds ++= jobStart.stageIds
-    }
-  }
-
-  override def onStageSubmitted(
-      stageSubmitted: SparkListenerStageSubmitted
-  ): Unit = {
-    val stageId = stageSubmitted.stageInfo.stageId
-    val numTasks = stageSubmitted.stageInfo.numTasks
-    rc.runtimeStageTaskTracker.numTasksBookKeeper.update(stageId, numTasks)
-  }
-
-  override def onStageCompleted(
-      stageCompleted: SparkListenerStageCompleted
-  ): Unit = {
-    val stageId = stageCompleted.stageInfo.stageId
-    if (rc.qsTotalTaskDurationTracker.listLeafStageIds.contains(stageId)) {
-      if (debug) {
-        println(
-          s"bypass stageId=${stageId} because it is a list-leaf-files-and-directories stage"
-        )
-      }
-    } else {
-      val minRddId = stageCompleted.stageInfo.rddInfos.map(_.id).min
-      val rootRdd =
-        stageCompleted.stageInfo.rddInfos.filter(_.id == minRddId).head.id
-      rc.qsTotalTaskDurationTracker.rootRddId2StageIds.get(rootRdd) match {
-        case Some(v) =>
-          rc.qsTotalTaskDurationTracker.rootRddId2StageIds
-            .update(rootRdd, v :+ stageId)
-        case None =>
-          rc.qsTotalTaskDurationTracker.rootRddId2StageIds
-            .update(rootRdd, Array(stageId))
-      }
-    }
   }
 
   override def onOtherEvent(event: SparkListenerEvent): Unit = {

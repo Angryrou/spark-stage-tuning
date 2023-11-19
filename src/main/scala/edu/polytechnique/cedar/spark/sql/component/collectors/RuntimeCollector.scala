@@ -97,22 +97,26 @@ class RuntimeCollector() {
       )
     )
 
+    assert(
+      qsMap.size == qsTotalTaskDurationTracker.rootRddId2StageIds.size,
+      s"Assertion failed: ${qsMap.size} != ${qsTotalTaskDurationTracker.rootRddId2StageIds.size}"
+    )
+
+    val qsId2QSResultTimes =
+      qsTotalTaskDurationTracker.getQsId2QSResultTimes(qsMap)
     val qsMap2 = qsMap.map(x =>
       (
         x._1.toString,
         x._2.json ~
           ("RunningQueryStageSnapshot" -> qsSnapshot(x._1).toJson) ~
           ("StartTimeInMs" -> qsStartTimeMap(x._1)) ~
-          ("DurationInMs" -> (0 - qsStartTimeMap(x._1))) ~
+          ("DurationInMs" -> qsId2QSResultTimes(x._1).DurationInMs) ~
+          ("TotalTaskDurationInMs" ->
+            qsId2QSResultTimes(x._1).totalTasksDurationInMs) ~
           ("RuntimeConfiguration" -> qsThetaR(x._1).map(y =>
             (y._1, y._2.toSeq)
           ))
       )
-    )
-
-    assert(
-      qsMap.size == qsTotalTaskDurationTracker.rootRddId2StageIds.size,
-      s"Assertion failed: ${qsMap.size} != ${qsTotalTaskDurationTracker.rootRddId2StageIds.size}"
     )
 
     val json = ("RuntimeLQPs" -> lqpMap2.toMap) ~
