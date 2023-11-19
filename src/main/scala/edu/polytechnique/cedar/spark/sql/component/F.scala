@@ -83,12 +83,14 @@ object F {
         case lqs: LogicalQueryStage =>
           lqs.physicalPlan match {
             case sqs: ShuffleQueryStageExec =>
-              val shuffleId = sqs.mapStats.get.shuffleId
-              val bytesByPartitionId: Array[Long] = sqs.mapStats match {
-                case Some(ms) => ms.bytesByPartitionId
-                case None     => Array[Long]()
+              if (sqs.isMaterialized) {
+                val shuffleId = sqs.mapStats.get.shuffleId
+                val bytesByPartitionId: Array[Long] = sqs.mapStats match {
+                  case Some(ms) => ms.bytesByPartitionId
+                  case None     => Array[Long]()
+                }
+                mapPartitionDistributionDict += (shuffleId -> bytesByPartitionId)
               }
-              mapPartitionDistributionDict += (shuffleId -> bytesByPartitionId)
             case _ =>
           }
         case _: LeafNode =>
@@ -166,6 +168,7 @@ object F {
             )
           )
         case sqs: ShuffleQueryStageExec =>
+          assert(sqs.isMaterialized)
           val shuffleId = sqs.mapStats.get.shuffleId
           val bytesByPartitionId: Array[Long] = sqs.mapStats match {
             case Some(ms) => ms.bytesByPartitionId

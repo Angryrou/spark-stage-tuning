@@ -38,7 +38,8 @@ class RuntimeCollector() {
     mutable.TreeMap[Int, Map[String, Array[(String, String)]]]()
 
   val runtimeStageTaskTracker = new RuntimeStageTaskTracker()
-  val observedLogicalQS = mutable.Set[LogicalPlan]()
+  val observedLogicalQS: mutable.Set[LogicalPlan] = mutable.Set[LogicalPlan]()
+  val qsTotalTaskDurationTracker = new QSTotalTaskDurationTracker()
 
   def getLqpId: Int = lqpId.get()
   def getQsId: Int = qsId.get()
