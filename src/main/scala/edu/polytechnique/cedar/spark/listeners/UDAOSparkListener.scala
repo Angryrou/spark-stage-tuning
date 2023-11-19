@@ -5,6 +5,7 @@ import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.scheduler.{
   SparkListener,
   SparkListenerEvent,
+  SparkListenerStageCompleted,
   SparkListenerStageSubmitted,
   SparkListenerTaskEnd,
   SparkListenerTaskStart,
@@ -45,6 +46,16 @@ case class UDAOSparkListener(rc: RuntimeCollector, debug: Boolean)
         stageId,
         mutable.Buffer[(TaskInfo, TaskMetrics)]()
       ) += ((info, metrics))
+      rc.qsTotalTaskDurationTracker.stageTotalTasksDurationDict.get(
+        stageId
+      ) match {
+        case Some(v) =>
+          rc.qsTotalTaskDurationTracker.stageTotalTasksDurationDict
+            .update(stageId, v + info.duration)
+        case None =>
+          rc.qsTotalTaskDurationTracker.stageTotalTasksDurationDict
+            .update(stageId, info.duration)
+      }
     }
     if (
       rc.runtimeStageTaskTracker.taskMetricsMap.size ==
@@ -59,6 +70,23 @@ case class UDAOSparkListener(rc: RuntimeCollector, debug: Boolean)
     val stageId = stageSubmitted.stageInfo.stageId
     val numTasks = stageSubmitted.stageInfo.numTasks
     rc.runtimeStageTaskTracker.numTasksBookKeeper.update(stageId, numTasks)
+  }
+
+  override def onStageCompleted(
+      stageCompleted: SparkListenerStageCompleted
+  ): Unit = {
+    val stageId = stageCompleted.stageInfo.stageId
+    val minRddId = stageCompleted.stageInfo.rddInfos.map(_.id).min
+    val rootRdd =
+      stageCompleted.stageInfo.rddInfos.filter(_.id == minRddId).head.id
+    rc.qsTotalTaskDurationTracker.rootRddId2StageIds.get(rootRdd) match {
+      case Some(v) =>
+        rc.qsTotalTaskDurationTracker.rootRddId2StageIds
+          .update(rootRdd, v :+ stageId)
+      case None =>
+        rc.qsTotalTaskDurationTracker.rootRddId2StageIds
+          .update(rootRdd, Array(stageId))
+    }
   }
 
   override def onOtherEvent(event: SparkListenerEvent): Unit = {

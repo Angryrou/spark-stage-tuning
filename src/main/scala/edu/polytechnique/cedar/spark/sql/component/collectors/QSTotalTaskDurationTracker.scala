@@ -1,4 +1,5 @@
 package edu.polytechnique.cedar.spark.sql.component.collectors
+
 import scala.collection.mutable
 
 class QSTotalTaskDurationTracker {
