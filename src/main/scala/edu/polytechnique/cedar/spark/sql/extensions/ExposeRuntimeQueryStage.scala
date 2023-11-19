@@ -25,16 +25,20 @@ case class ExposeRuntimeQueryStage(
           println("This query stage has been observed before.")
         }
       } else {
-        val qsId = rc.addQS(
-          qsUnit = F.exposeQS(plan, rc.observedLogicalQS.toSet),
-          startTimeInMs = F.getTimeInMs,
-          snapshot = rc.runtimeStageTaskTracker.snapshot(),
-          runtimeKnobsDict = F.getRuntimeConfiguration(spark)
-        )
-
-        rc.observedLogicalQS += plan.logicalLink.get.canonicalized
-        if (debug) {
-          println(s"added runtime QS-${qsId} for execId=${executionId.get}")
+        if (rc.observedPhysicalQS.contains(plan.canonicalized)) {
+          println("This query stage can be reused.")
+        } else {
+          val qsId = rc.addQS(
+            qsUnit = F.exposeQS(plan, rc.observedLogicalQS.toSet),
+            startTimeInMs = F.getTimeInMs,
+            snapshot = rc.runtimeStageTaskTracker.snapshot(),
+            runtimeKnobsDict = F.getRuntimeConfiguration(spark)
+          )
+          rc.observedLogicalQS += plan.logicalLink.get.canonicalized
+          rc.observedPhysicalQS += plan.canonicalized
+          if (debug) {
+            println(s"added runtime QS-${qsId} for execId=${executionId.get}")
+          }
         }
       }
     }

@@ -6,6 +6,7 @@ import edu.polytechnique.cedar.spark.sql.component.{
   RunningQueryStageSnapshot
 }
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.execution.SparkPlan
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
@@ -39,6 +40,7 @@ class RuntimeCollector() {
 
   val runtimeStageTaskTracker = new RuntimeStageTaskTracker()
   val observedLogicalQS: mutable.Set[LogicalPlan] = mutable.Set[LogicalPlan]()
+  val observedPhysicalQS: mutable.Set[SparkPlan] = mutable.Set[SparkPlan]()
   val qsTotalTaskDurationTracker = new QSTotalTaskDurationTracker()
 
   def getLqpId: Int = lqpId.get()
