@@ -111,7 +111,7 @@ case class UDAOSparkListener(rc: RuntimeCollector, debug: Boolean)
       }
     }
     if (
-      rc.runtimeStageTaskTracker.taskMetricsMap.size ==
+      rc.runtimeStageTaskTracker.taskMetricsMap(stageId).size ==
         rc.runtimeStageTaskTracker.numTasksBookKeeper(stageId)
     )
       rc.runtimeStageTaskTracker.removeStageById(stageId)
