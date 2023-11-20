@@ -186,12 +186,13 @@ object F {
           )
         case sqs: ShuffleQueryStageExec =>
           assert(sqs.isMaterialized)
-          val shuffleId = sqs.mapStats.get.shuffleId
-          val bytesByPartitionId: Array[Long] = sqs.mapStats match {
-            case Some(ms) => ms.bytesByPartitionId
-            case None     => Array[Long]()
+          sqs.mapStats match {
+            case Some(ms) =>
+              val shuffleId = ms.shuffleId
+              val bytesByPartitionId: Array[Long] = ms.bytesByPartitionId
+              mapPartitionDistributionDict += (shuffleId -> bytesByPartitionId)
+            case None =>
           }
-          mapPartitionDistributionDict += (shuffleId -> bytesByPartitionId)
         case _: LeafExecNode =>
         case u: UnionExec =>
           u.children.foreach(
