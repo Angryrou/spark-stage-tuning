@@ -26,7 +26,10 @@ case class ExposeRuntimeQueryStage(
       return plan
 
     // when the plan has been observed, skip it.
-    if (rc.observedLogicalQS.contains(plan.logicalLink.get.canonicalized)) {
+    if (
+      rc.observedLogicalQS.contains(plan.logicalLink.get.canonicalized) |
+        rc.observedPhysicalQS.contains(plan.canonicalized)
+    ) {
       if (debug) {
         println("This query stage has been observed before.")
       }
@@ -49,6 +52,7 @@ case class ExposeRuntimeQueryStage(
       runtimeKnobsDict = F.getRuntimeConfiguration(spark)
     )
     rc.observedLogicalQS += plan.logicalLink.get.canonicalized
+    rc.observedPhysicalQS += plan.canonicalized
     if (debug) {
       println(s"added runtime QS-${qsId} for execId=${executionId.get}")
     }
