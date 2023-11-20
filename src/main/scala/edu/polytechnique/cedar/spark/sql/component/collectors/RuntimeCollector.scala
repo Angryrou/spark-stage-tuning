@@ -40,7 +40,6 @@ class RuntimeCollector() {
 
   val runtimeStageTaskTracker = new RuntimeStageTaskTracker()
   val observedLogicalQS: mutable.Set[LogicalPlan] = mutable.Set[LogicalPlan]()
-  val observedPhysicalQS: mutable.Set[SparkPlan] = mutable.Set[SparkPlan]()
   val qsTotalTaskDurationTracker = new QSTotalTaskDurationTracker()
 
   def getLqpId: Int = lqpId.get()

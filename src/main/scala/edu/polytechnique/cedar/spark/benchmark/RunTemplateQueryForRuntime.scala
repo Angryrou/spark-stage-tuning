@@ -148,7 +148,8 @@ object RunTemplateQueryForRuntime {
     println(spark.sparkContext.getConf.get("spark.yarn.historyServer.address"))
 
     println(s"run ${queryLocationHeader}/${tid}/${tid}-${qid}.sql")
-    println(queryContent)
+    if (config.localDebug)
+      println(queryContent)
 
     initialCollector.lqpMap += ("collect" -> F.exposeLQP(
       spark.sql(queryContent).queryExecution.optimizedPlan

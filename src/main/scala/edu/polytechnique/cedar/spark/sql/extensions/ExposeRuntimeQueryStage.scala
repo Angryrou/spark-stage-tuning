@@ -40,10 +40,6 @@ case class ExposeRuntimeQueryStage(
         return plan
       case _ =>
     }
-    if (rc.observedPhysicalQS.contains(plan.canonicalized)) {
-      println("This query stage can be reused.")
-      throw new Exception("should not be reached here")
-    }
 
     // expose the query stage
     val qsId = rc.addQS(
@@ -53,7 +49,6 @@ case class ExposeRuntimeQueryStage(
       runtimeKnobsDict = F.getRuntimeConfiguration(spark)
     )
     rc.observedLogicalQS += plan.logicalLink.get.canonicalized
-    rc.observedPhysicalQS += plan.canonicalized
     if (debug) {
       println(s"added runtime QS-${qsId} for execId=${executionId.get}")
     }
