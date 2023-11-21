@@ -27,26 +27,22 @@ case class ExposeRuntimeQueryStage(
 
     // when the plan has been observed, skip it.
     if (rc.observedPhysicalQS.contains(plan.canonicalized)) {
-      if (debug) {
-        println(
-          "This query stage has been observed before in plan.canonicalized."
-        )
-      }
+      println(
+        "This query stage has been observed before in plan.canonicalized."
+      )
       return plan
     }
     if (rc.observedLogicalQS.contains(plan.logicalLink.get.canonicalized)) {
-      if (debug) {
-        println(
-          "This query stage has been observed before in plan.logicalLink.get.canonicalized."
-        )
-      }
+      println(
+        "This query stage has been observed before in plan.logicalLink.get.canonicalized."
+      )
       return plan
     }
 
     // when the plan is a reused query stage, skip it.
     plan match {
       case qs: QueryStageExec if qs.plan.isInstanceOf[ReusedExchangeExec] =>
-        if (debug) { println("This query stage is a reused query stage.") }
+        println("This query stage is a reused query stage.")
         return plan
       case _ =>
     }
