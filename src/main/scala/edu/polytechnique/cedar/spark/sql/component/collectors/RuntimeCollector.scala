@@ -11,32 +11,29 @@ import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
 import java.util.concurrent.atomic.AtomicInteger
+import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 
 class RuntimeCollector() {
 
   private val lqpId: AtomicInteger = new AtomicInteger(1)
-  private val lqpMap: mutable.Map[Int, LQPUnit] =
-    mutable.TreeMap[Int, LQPUnit]()
-  private val lqpStartTimeInMsMap: mutable.Map[Int, Long] =
-    mutable.TreeMap[Int, Long]()
-  private val lqpSnapshot: mutable.Map[Int, RunningQueryStageSnapshot] =
-    mutable.TreeMap[Int, RunningQueryStageSnapshot]()
-  private val lqpThetaR
-      : mutable.Map[Int, Map[String, Array[(String, String)]]] =
-    mutable.TreeMap[Int, Map[String, Array[(String, String)]]]()
+  private val lqpMap: TrieMap[Int, LQPUnit] = new TrieMap[Int, LQPUnit]()
+  private val lqpStartTimeInMsMap: TrieMap[Int, Long] = new TrieMap[Int, Long]()
+  private val lqpSnapshot: TrieMap[Int, RunningQueryStageSnapshot] =
+    new TrieMap[Int, RunningQueryStageSnapshot]()
+  private val lqpThetaR: TrieMap[Int, Map[String, Array[(String, String)]]] =
+    new TrieMap[Int, Map[String, Array[(String, String)]]]()
 
   private var sqlStartTimeInMs: Long = -1
   private var sqlEndTimeInMs: Long = -1
 
   private val qsId: AtomicInteger = new AtomicInteger(0)
-  private val qsMap: mutable.Map[Int, QSUnit] = mutable.TreeMap[Int, QSUnit]()
-  private val qsStartTimeMap: mutable.Map[Int, Long] =
-    mutable.TreeMap[Int, Long]()
-  private val qsSnapshot: mutable.Map[Int, RunningQueryStageSnapshot] =
-    mutable.TreeMap[Int, RunningQueryStageSnapshot]()
-  private val qsThetaR: mutable.Map[Int, Map[String, Array[(String, String)]]] =
-    mutable.TreeMap[Int, Map[String, Array[(String, String)]]]()
+  private val qsMap: TrieMap[Int, QSUnit] = new TrieMap[Int, QSUnit]()
+  private val qsStartTimeMap: TrieMap[Int, Long] = new TrieMap[Int, Long]()
+  private val qsSnapshot: TrieMap[Int, RunningQueryStageSnapshot] =
+    new TrieMap[Int, RunningQueryStageSnapshot]()
+  private val qsThetaR: TrieMap[Int, Map[String, Array[(String, String)]]] =
+    new TrieMap[Int, Map[String, Array[(String, String)]]]()
 
   val runtimeStageTaskTracker = new RuntimeStageTaskTracker()
   val observedLogicalQS: mutable.Set[LogicalPlan] = mutable.Set[LogicalPlan]()
