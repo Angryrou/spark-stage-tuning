@@ -55,6 +55,13 @@ case class UDAOSparkListener(rc: RuntimeCollector, debug: Boolean)
       val minRddId = stageCompleted.stageInfo.rddInfos.map(_.id).min
       val rootRdd =
         stageCompleted.stageInfo.rddInfos.filter(_.id == minRddId).head.id
+      val wscgSign = stageCompleted.stageInfo.rddInfos
+        .filter(x =>
+          x.scope.isDefined & x.scope.get.name.contains("WholeStageCodegen")
+        )
+        .map(_.scope.get.name.split('(').last.split(')').head)
+        .sorted
+        .mkString(",")
       rc.qsTotalTaskDurationTracker.stageStartEndTimeDict
         .update(
           stageId,
@@ -63,13 +70,14 @@ case class UDAOSparkListener(rc: RuntimeCollector, debug: Boolean)
             stageCompleted.stageInfo.completionTime.get
           )
         )
-      rc.qsTotalTaskDurationTracker.rootRddId2StageIds.get(rootRdd) match {
+      rc.qsTotalTaskDurationTracker.rootRddId2StageIds
+        .get((rootRdd, wscgSign)) match {
         case Some(v) =>
           rc.qsTotalTaskDurationTracker.rootRddId2StageIds
-            .update(rootRdd, v :+ stageId)
+            .update((rootRdd, wscgSign), v :+ stageId)
         case None =>
           rc.qsTotalTaskDurationTracker.rootRddId2StageIds
-            .update(rootRdd, Array(stageId))
+            .update((rootRdd, wscgSign), Array(stageId))
       }
     }
   }

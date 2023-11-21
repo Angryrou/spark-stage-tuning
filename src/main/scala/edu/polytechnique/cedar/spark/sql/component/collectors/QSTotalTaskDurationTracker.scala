@@ -9,13 +9,15 @@ class QSTotalTaskDurationTracker {
   val stageTotalTasksDurationDict: TrieMap[Int, Long] = new TrieMap[Int, Long]()
   val stageStartEndTimeDict: TrieMap[Int, (Long, Long)] =
     new TrieMap[Int, (Long, Long)]()
-  val rootRddId2StageIds: TrieMap[Int, Array[Int]] =
-    new TrieMap[Int, Array[Int]]()
+  val rootRddId2StageIds: TrieMap[(Int, String), Array[Int]] =
+    new TrieMap[(Int, String), Array[Int]]()
   val listLeafStageIds: mutable.Set[Int] = mutable.Set[Int]()
 
-  private def getRootRddId2QSResultTimes: mutable.Map[Int, QSResultTimes] = {
-    val rootRddId2QSResultTimes = new mutable.TreeMap[Int, QSResultTimes]()
-    for ((rootRddIds, stageIds) <- rootRddId2StageIds) {
+  private def getRootRddId2QSResultTimes
+      : mutable.Map[(Int, String), QSResultTimes] = {
+    val rootRddId2QSResultTimes =
+      new mutable.TreeMap[(Int, String), QSResultTimes]()
+    for (((rootRddIds, wscgSign), stageIds) <- rootRddId2StageIds) {
       val startTime = stageIds.map(stageStartEndTimeDict(_)._1).min
       val endTime = stageIds.map(stageStartEndTimeDict(_)._2).max
       val durationInMs = endTime - startTime
@@ -23,7 +25,7 @@ class QSTotalTaskDurationTracker {
         stageIds.map(stageTotalTasksDurationDict(_)).sum
       val qSResultTimes =
         QSResultTimes(durationInMs, totalTasksDurationInMs, stageIds)
-      rootRddId2QSResultTimes += (rootRddIds -> qSResultTimes)
+      rootRddId2QSResultTimes += ((rootRddIds, wscgSign) -> qSResultTimes)
     }
     rootRddId2QSResultTimes
   }
