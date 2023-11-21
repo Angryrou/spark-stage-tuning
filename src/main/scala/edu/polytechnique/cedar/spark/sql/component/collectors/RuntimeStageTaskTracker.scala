@@ -2,17 +2,17 @@ package edu.polytechnique.cedar.spark.sql.component.collectors
 
 import edu.polytechnique.cedar.spark.sql.component.RunningQueryStageSnapshot
 import org.apache.spark.executor.TaskMetrics
-import org.apache.spark.scheduler.{SparkListenerStageCompleted, TaskInfo}
+import org.apache.spark.scheduler.TaskInfo
 
+import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 
 class RuntimeStageTaskTracker {
 
-  val numTasksBookKeeper: mutable.Map[Int, Int] = mutable.Map()
-  val startedTasksNumTracker: mutable.Map[Int, Int] = mutable.Map()
-  val taskMetricsMap
-      : mutable.Map[Int, mutable.Buffer[(TaskInfo, TaskMetrics)]] =
-    mutable.Map()
+  val numTasksBookKeeper: TrieMap[Int, Int] = new TrieMap()
+  val startedTasksNumTracker: TrieMap[Int, Int] = new TrieMap()
+  val taskMetricsMap: TrieMap[Int, mutable.Buffer[(TaskInfo, TaskMetrics)]] =
+    new TrieMap()
   private val defaultProbabilities = Array(0, 0.25, 0.5, 0.75, 1.0)
 
   def removeStageById(stageId: Int): Unit = {
