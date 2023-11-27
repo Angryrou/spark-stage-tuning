@@ -3,7 +3,7 @@
 # Initialize variables with default values
 query="9 1"
 theta_c="16g 5 4 40 48m 200 true 0.6"
-theta_p="64MB 0.2 0b 10MB 200 256MB 5.0"
+theta_p="64MB 0.2 0b 10MB 200 256MB 5.0 128MB 4MB"
 theta_s="0.2 1MB"
 name="unnamed"
 xpath="./outs"
