@@ -53,7 +53,7 @@ case class ExposeRuntimeQueryStage(
 
     if (debug) {
       println("----------------------------------------")
-      println(s"adding a new query stage ${plan.canonicalized}")
+//      println(s"adding a new query stage ${plan.canonicalized}")
     }
 
     // expose the query stage

@@ -19,9 +19,13 @@ import org.apache.spark.sql.execution.ui.{
 }
 
 import scala.collection.mutable
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
 
 case class UDAOSparkListener(rc: RuntimeCollector, debug: Boolean)
     extends SparkListener {
+
+  implicit val formats: DefaultFormats.type = DefaultFormats
 
   override def onJobStart(
       jobStart: SparkListenerJobStart
@@ -30,6 +34,19 @@ case class UDAOSparkListener(rc: RuntimeCollector, debug: Boolean)
       jobStart.properties.getProperty("spark.job.description")
     if (desc != null && desc.contains("Listing leaf files and directories")) {
       rc.qsTotalTaskDurationTracker.listLeafStageIds ++= jobStart.stageIds
+    } else {
+      val json = parse(jobStart.properties.getProperty("spark.rdd.scope"))
+      val scopeId = (json \ "id").asInstanceOf[JString].s.toInt
+      val stageIds = jobStart.stageIds.toArray[Int]
+      // get scopeId to [stageId] mapping
+      rc.qsTotalTaskDurationTracker.scopeId2StageIds.get(scopeId) match {
+        case Some(v) =>
+          rc.qsTotalTaskDurationTracker.scopeId2StageIds
+            .update(scopeId, v ++ stageIds)
+        case None =>
+          rc.qsTotalTaskDurationTracker.scopeId2StageIds
+            .update(scopeId, stageIds)
+      }
     }
   }
 
@@ -52,16 +69,6 @@ case class UDAOSparkListener(rc: RuntimeCollector, debug: Boolean)
         )
       }
     } else {
-      val minRddId = stageCompleted.stageInfo.rddInfos.map(_.id).min
-      val rootRdd =
-        stageCompleted.stageInfo.rddInfos.filter(_.id == minRddId).head.id
-      val wscgSign = stageCompleted.stageInfo.rddInfos
-        .filter(x =>
-          x.scope.isDefined & x.scope.get.name.contains("WholeStageCodegen")
-        )
-        .map(_.scope.get.name.split('(').last.split(')').head)
-        .sorted
-        .mkString(",")
       rc.qsTotalTaskDurationTracker.stageStartEndTimeDict
         .update(
           stageId,
@@ -70,15 +77,6 @@ case class UDAOSparkListener(rc: RuntimeCollector, debug: Boolean)
             stageCompleted.stageInfo.completionTime.get
           )
         )
-      rc.qsTotalTaskDurationTracker.rootRddId2StageIds
-        .get((rootRdd, wscgSign)) match {
-        case Some(v) =>
-          rc.qsTotalTaskDurationTracker.rootRddId2StageIds
-            .update((rootRdd, wscgSign), v :+ stageId)
-        case None =>
-          rc.qsTotalTaskDurationTracker.rootRddId2StageIds
-            .update((rootRdd, wscgSign), Array(stageId))
-      }
     }
   }
 

@@ -97,8 +97,8 @@ class RuntimeCollector() {
     )
 
     assert(
-      qsMap.size == qsTotalTaskDurationTracker.rootRddId2StageIds.size,
-      s"Assertion failed: ${qsMap.size} != ${qsTotalTaskDurationTracker.rootRddId2StageIds.size}"
+      qsMap.size == qsTotalTaskDurationTracker.scopeId2StageIds.size,
+      s"Assertion failed: ${qsMap.size} != ${qsTotalTaskDurationTracker.scopeId2StageIds.size}"
     )
 
     val qsId2QSResultTimes =
