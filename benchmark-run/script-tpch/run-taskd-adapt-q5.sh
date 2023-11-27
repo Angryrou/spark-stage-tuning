@@ -34,6 +34,6 @@ for po_config in "${po_configs[@]}"; do
     sleep 5
     echo -------------------------
     echo start running $name x$i
-    bash run-tpch-q-adapt.sh -n $name -q "${tid} ${qid}" -c "${k1} ${k2} ${k3} $((k2 * k3 * 2)) 48m 200 true 0.6" -p "${s1} 0.2 0b ${s4} ${s5} 256MB 5.0" -x "outs/taskd" -i ${uId} | tee logs/${name}_x${i}.log 2>&1
+    bash run-tpch-q-adapt.sh -n $name -q "${tid} ${qid}" -c "${k1} ${k2} ${k3} $((k2 * k3 * 2)) 48m 200 true 0.6" -p "${s1} 0.2 0b ${s4} ${s5} 256MB 5.0 128MB 4MB" -x "outs/taskd" -i ${uId} | tee logs/${name}_x${i}.log 2>&1
   done
 done

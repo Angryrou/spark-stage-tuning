@@ -25,7 +25,7 @@ for s1s4s5 in "$s1s4s5_cand1" "$s1s4s5_cand2" "$s1s4s5_cand3"; do
       sleep 5
       echo -------------------------
       echo start running $name x$i
-      bash run-tpch-q-adapt.sh -n $name -q "${tid} ${qid}" -p "${s1} 0.2 0b ${s4} ${s5} 256MB 5.0" -x "outs/taskb" -i ${uId} | tee logs/${name}_x${i}.log 2>&1
+      bash run-tpch-q-adapt.sh -n $name -q "${tid} ${qid}" -p "${s1} 0.2 0b ${s4} ${s5} 256MB 5.0 128MB 4BM" -x "outs/taskb" -i ${uId} | tee logs/${name}_x${i}.log 2>&1
     done
   done
 done

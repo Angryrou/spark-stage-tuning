@@ -18,7 +18,7 @@ for s1 in 16MB 64MB 256MB; do
         sleep 5
         echo -------------------------
         echo start running $name x$i
-        bash run-tpch-q.sh -n $name -q "${tid} ${qid}" -p "${s1} 0.2 0b ${s4} ${s5} 256MB 5.0" -x "outs/taskb" | tee logs/${name}_x${i}.log 2>&1
+        bash run-tpch-q.sh -n $name -q "${tid} ${qid}" -p "${s1} 0.2 0b ${s4} ${s5} 256MB 5.0 128MB 4MB" -x "outs/taskb" | tee logs/${name}_x${i}.log 2>&1
       done
     done
   done

@@ -3,7 +3,7 @@
 # Initialize variables with default values
 query="9 1"
 theta_c="16g 5 4 40 48m 200 true 0.6"
-theta_p="64MB 0.2 0b 10MB 200 256MB 5.0"
+theta_p="64MB 0.2 0b 10MB 200 256MB 5.0 128MB 4MB"
 theta_s="0.2 1MB"
 name="unnamed"
 xpath="./outs"
@@ -42,8 +42,8 @@ done
 read tid qid <<< "$query"
 qsign=q${tid}-{qid}
 read k1 k2 k3 k4 k5 k6 k7 k8 <<< "$theta_c"
-read s1 s2 s3 s4 s5 s6 s7 <<< "$theta_p"
-read s8 s9 <<< "$theta_s"
+read s1 s2 s3 s4 s5 s6 s7 s8 s9 <<< "$theta_p"
+read s10 s11 <<< "$theta_s"
 
 spath=/opt/hex_users/$USER/chenghao/spark-stage-tuning
 jpath=/opt/hex_users/$USER/spark-3.2.1-hadoop3.3.0/jdk1.8
@@ -77,8 +77,10 @@ qpath=/opt/hex_users/$USER/chenghao/UDAO2022
 --conf spark.sql.shuffle.partitions=${s5} \
 --conf spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes=${s6} \
 --conf spark.sql.adaptive.skewJoin.skewedPartitionFactor=${s7} \
---conf spark.sql.adaptive.rebalancePartitionsSmallPartitionFactor=${s8} \
---conf spark.sql.adaptive.coalescePartitions.minPartitionSize=${s9} \
+--conf spark.sql.files.maxPartitionBytes=${s8} \
+--conf spark.sql.files.openCostInBytes=${s9} \
+--conf spark.sql.adaptive.rebalancePartitionsSmallPartitionFactor=${s10} \
+--conf spark.sql.adaptive.coalescePartitions.minPartitionSize=${s11} \
 --conf spark.sql.adaptive.coalescePartitions.parallelismFirst=false \
 --conf spark.sql.parquet.compression.codec=snappy \
 --conf spark.sql.broadcastTimeout=10000 \
