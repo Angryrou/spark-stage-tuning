@@ -59,6 +59,7 @@ class QSTotalTaskDurationTracker {
             x._1,
             minRddId2QSResultTimes(x._2).relevantStageIds.mkString(",")
           )
+          qsId2QSResultTimes.update(x._1, minRddId2QSResultTimes(x._2))
         })
     }
     if (verbose) {
