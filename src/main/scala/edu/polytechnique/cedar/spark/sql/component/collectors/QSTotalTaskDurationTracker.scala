@@ -13,8 +13,8 @@ class QSTotalTaskDurationTracker {
   val table2QSIds: TrieMap[String, Array[Int]] =
     new TrieMap[String, Array[Int]]()
 
-  val table2minRddIds: TrieMap[String, Array[(Int, String)]] =
-    new TrieMap[String, Array[(Int, String)]]()
+  val table2minRddIds: TrieMap[String, Set[(Int, String)]] =
+    new TrieMap[String, Set[(Int, String)]]()
 
   val minRddId2StageIds: TrieMap[(Int, String), Array[Int]] =
     new TrieMap[(Int, String), Array[Int]]()
@@ -49,7 +49,7 @@ class QSTotalTaskDurationTracker {
     val qs2stageIds = mutable.TreeMap[Int, String]()
     for (key <- keySet) {
       val qsIds = table2QSIds(key).sorted
-      val minRddIds = table2minRddIds(key).sorted
+      val minRddIds = table2minRddIds(key).toSeq.sorted
       assert(qsIds.length == minRddIds.length)
       qsIds
         .zip(minRddIds)

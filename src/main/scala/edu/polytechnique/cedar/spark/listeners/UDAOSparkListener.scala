@@ -43,48 +43,56 @@ case class UDAOSparkListener(
     val numTasks = stageSubmitted.stageInfo.numTasks
     rc.runtimeStageTaskTracker.numTasksBookKeeper.update(stageId, numTasks)
 
-    // Update the table -> rddId mapping
-    val wscgSign = stageSubmitted.stageInfo.rddInfos
-      .filter(x =>
-        x.scope.isDefined & x.scope.get.name.contains("WholeStageCodegen")
-      )
-      .map(_.scope.get.name.split('(').last.split(')').head)
-      .sorted
-      .mkString(",")
+    if (rc.qsTotalTaskDurationTracker.listLeafStageIds.contains(stageId)) {
+      if (debug) {
+        println(
+          s"bypass stageId=${stageId} because it is a list-leaf-files-and-directories stage"
+        )
+      }
+    } else {
+      // Update the table -> rddId mapping
+      val wscgSign = stageSubmitted.stageInfo.rddInfos
+        .filter(x =>
+          x.scope.isDefined & x.scope.get.name.contains("WholeStageCodegen")
+        )
+        .map(_.scope.get.name.split('(').last.split(')').head)
+        .sorted
+        .mkString(",")
 
-    val table = stageSubmitted.stageInfo.rddInfos
-      .filter(_.name == "FileScanRDD")
-      .map(_.scope.get.name.split('.').last)
-      .sorted
-      .mkString(",")
-    val minRddId = stageSubmitted.stageInfo.rddInfos.map(_.id).min
-    rc.qsTotalTaskDurationTracker.table2minRddIds.get(table) match {
-      case Some(minRddIds) =>
-        rc.qsTotalTaskDurationTracker.table2minRddIds
-          .update(table, minRddIds :+ (minRddId, wscgSign))
-      case None =>
-        rc.qsTotalTaskDurationTracker.table2minRddIds
-          .update(table, Array((minRddId, wscgSign)))
-    }
+      val table = stageSubmitted.stageInfo.rddInfos
+        .filter(_.name == "FileScanRDD")
+        .map(_.scope.get.name.split('.').last)
+        .sorted
+        .mkString(",")
+      val minRddId = stageSubmitted.stageInfo.rddInfos.map(_.id).min
+      rc.qsTotalTaskDurationTracker.table2minRddIds.get(table) match {
+        case Some(minRddIds) =>
+          rc.qsTotalTaskDurationTracker.table2minRddIds
+            .update(table, minRddIds | Set((minRddId, wscgSign)))
+        case None =>
+          rc.qsTotalTaskDurationTracker.table2minRddIds
+            .update(table, Set((minRddId, wscgSign)))
+      }
 
-    // store the rddId -> stageId mapping
-    rc.qsTotalTaskDurationTracker.minRddId2StageIds.get(
-      (minRddId, wscgSign)
-    ) match {
-      case Some(stageIds) =>
-        rc.qsTotalTaskDurationTracker.minRddId2StageIds
-          .update((minRddId, wscgSign), stageIds :+ stageId)
-      case None =>
-        rc.qsTotalTaskDurationTracker.minRddId2StageIds
-          .update((minRddId, wscgSign), Array(stageId))
-    }
+      // store the rddId -> stageId mapping
+      rc.qsTotalTaskDurationTracker.minRddId2StageIds.get(
+        (minRddId, wscgSign)
+      ) match {
+        case Some(stageIds) =>
+          rc.qsTotalTaskDurationTracker.minRddId2StageIds
+            .update((minRddId, wscgSign), stageIds :+ stageId)
+        case None =>
+          rc.qsTotalTaskDurationTracker.minRddId2StageIds
+            .update((minRddId, wscgSign), Array(stageId))
+      }
 
-    if (verbose) {
-      val rddIds = stageSubmitted.stageInfo.rddInfos.map(_.id).sorted
-      println(
-        s"stageId=${stageId}, taskNum:$numTasks, rddIds:${rddIds
-          .mkString(",")}, relations:${table}"
-      )
+      if (verbose) {
+        val rddIds = stageSubmitted.stageInfo.rddInfos.map(_.id).sorted
+        println(
+          s"stageId=${stageId}, taskNum:$numTasks, rddIds:${rddIds
+            .mkString(",")}, relations:${table}"
+        )
+      }
     }
   }
 
