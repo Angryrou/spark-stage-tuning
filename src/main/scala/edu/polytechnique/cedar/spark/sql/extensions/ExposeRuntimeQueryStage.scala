@@ -4,7 +4,7 @@ import edu.polytechnique.cedar.spark.sql.component.F
 import edu.polytechnique.cedar.spark.sql.component.collectors.RuntimeCollector
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.execution.SparkPlan
+import org.apache.spark.sql.execution.{FileSourceScanExec, SparkPlan}
 import org.apache.spark.sql.execution.adaptive.QueryStageExec
 import org.apache.spark.sql.execution.exchange.ReusedExchangeExec
 
@@ -29,7 +29,7 @@ case class ExposeRuntimeQueryStage(
     if (rc.observedPhysicalQS.contains(plan.canonicalized)) {
       if (debug) {
         println(
-          "This query stage has been observed before in plan.canonicalized."
+          s"This query stage (${F.getLeafTables(plan)}) has been observed before in plan.canonicalized."
         )
       }
       return plan
@@ -66,7 +66,12 @@ case class ExposeRuntimeQueryStage(
     rc.observedLogicalQS += plan.logicalLink.get.canonicalized
     rc.observedPhysicalQS += plan.canonicalized
     if (debug) {
-      println(s"added runtime QS-${qsId} for execId=${executionId.get}")
+      val tables = F.getLeafTables(plan)
+      println("----------------------------------------")
+      println(
+        s"added runtime QS-${qsId} (tables: ${tables}) for execId=${executionId.get}"
+      )
+      println(plan.canonicalized)
     }
 
     plan

@@ -47,6 +47,9 @@ case class UDAOSparkListener(rc: RuntimeCollector, debug: Boolean)
           rc.qsTotalTaskDurationTracker.scopeId2StageIds
             .update(scopeId, stageIds)
       }
+      println(
+        s"jobId: ${jobStart.jobId}, scopeId: ${scopeId}, stages: ${stageIds.mkString(",")}"
+      )
     }
   }
 
@@ -56,6 +59,20 @@ case class UDAOSparkListener(rc: RuntimeCollector, debug: Boolean)
     val stageId = stageSubmitted.stageInfo.stageId
     val numTasks = stageSubmitted.stageInfo.numTasks
     rc.runtimeStageTaskTracker.numTasksBookKeeper.update(stageId, numTasks)
+
+    val rddIds = stageSubmitted.stageInfo.rddInfos.map(_.id).sorted
+    val scanTables = stageSubmitted.stageInfo.rddInfos
+      .filter(_.name == "FileScanRDD")
+      .map(_.scope.get.name.split('.').last)
+      .mkString(",")
+    val fileScopeIds = stageSubmitted.stageInfo.rddInfos
+      .filter(_.name == "FileScanRDD")
+      .map(_.scope.get.id)
+      .mkString(",")
+    println(
+      s"stageId=${stageId}, taskNum:$numTasks, rddIds:${rddIds
+        .mkString(",")}, relations:${scanTables}, fileScopeIds:${fileScopeIds}"
+    )
   }
 
   override def onStageCompleted(

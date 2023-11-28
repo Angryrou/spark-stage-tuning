@@ -15,6 +15,7 @@ import org.apache.spark.sql.execution.adaptive.{
 }
 import org.apache.spark.sql.execution.{
   BinaryExecNode,
+  FileSourceScanExec,
   LeafExecNode,
   SQLExecution,
   SparkPlan,
@@ -402,4 +403,11 @@ object F {
       "theta_p" -> getConfiguration(spark, "theta_p"),
       "theta_s" -> getConfiguration(spark, "theta_s")
     )
+
+  def getLeafTables(plan: SparkPlan) = plan
+    .collectLeaves()
+    .filter(_.isInstanceOf[FileSourceScanExec])
+    .map(_.asInstanceOf[FileSourceScanExec].tableIdentifier.get.table)
+    .sorted
+    .mkString(",")
 }
