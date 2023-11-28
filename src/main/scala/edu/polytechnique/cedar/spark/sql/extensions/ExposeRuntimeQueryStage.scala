@@ -60,6 +60,18 @@ case class ExposeRuntimeQueryStage(
     )
     rc.observedLogicalQS += plan.logicalLink.get.canonicalized
     rc.observedPhysicalQS += plan.canonicalized
+
+    val table = F.getLeafTables(plan)
+    rc.qsTotalTaskDurationTracker.table2QSIds.get(table) match {
+      case Some(qsIds) =>
+        rc.qsTotalTaskDurationTracker.table2QSIds.update(
+          table,
+          qsIds :+ qsId
+        )
+      case None =>
+        rc.qsTotalTaskDurationTracker.table2QSIds.update(table, Array(qsId))
+    }
+
 //    if (debug) {
     val tables = F.getLeafTables(plan)
     println("----------------------------------------")

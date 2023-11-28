@@ -97,12 +97,12 @@ class RuntimeCollector() {
     )
 
     assert(
-      qsMap.size == qsTotalTaskDurationTracker.scopeId2StageIds.size,
-      s"Assertion failed: ${qsMap.size} != ${qsTotalTaskDurationTracker.scopeId2StageIds.size}"
+      qsMap.size == qsTotalTaskDurationTracker.minRddId2StageIds.size,
+      s"Assertion failed: ${qsMap.size} != ${qsTotalTaskDurationTracker.minRddId2StageIds.size}"
     )
 
     val qsId2QSResultTimes =
-      qsTotalTaskDurationTracker.getQsId2QSResultTimes(qsMap)
+      qsTotalTaskDurationTracker.getQsId2QSResultTimes(qsMap, true)
     val qsMap2 = qsMap.map(x =>
       (
         x._1.toString,

@@ -19,13 +19,12 @@ import org.apache.spark.sql.execution.ui.{
 }
 
 import scala.collection.mutable
-import org.json4s._
-import org.json4s.jackson.JsonMethods._
 
-case class UDAOSparkListener(rc: RuntimeCollector, debug: Boolean)
-    extends SparkListener {
-
-  implicit val formats: DefaultFormats.type = DefaultFormats
+case class UDAOSparkListener(
+    rc: RuntimeCollector,
+    debug: Boolean,
+    verbose: Boolean = true
+) extends SparkListener {
 
   override def onJobStart(
       jobStart: SparkListenerJobStart
@@ -34,22 +33,6 @@ case class UDAOSparkListener(rc: RuntimeCollector, debug: Boolean)
       jobStart.properties.getProperty("spark.job.description")
     if (desc != null && desc.contains("Listing leaf files and directories")) {
       rc.qsTotalTaskDurationTracker.listLeafStageIds ++= jobStart.stageIds
-    } else {
-      val json = parse(jobStart.properties.getProperty("spark.rdd.scope"))
-      val scopeId = (json \ "id").asInstanceOf[JString].s.toInt
-      val stageIds = jobStart.stageIds.toArray[Int]
-      // get scopeId to [stageId] mapping
-      rc.qsTotalTaskDurationTracker.scopeId2StageIds.get(scopeId) match {
-        case Some(v) =>
-          rc.qsTotalTaskDurationTracker.scopeId2StageIds
-            .update(scopeId, v ++ stageIds)
-        case None =>
-          rc.qsTotalTaskDurationTracker.scopeId2StageIds
-            .update(scopeId, stageIds)
-      }
-      println(
-        s"jobId: ${jobStart.jobId}, scopeId: ${scopeId}, stages: ${stageIds.mkString(",")}"
-      )
     }
   }
 
@@ -60,19 +43,49 @@ case class UDAOSparkListener(rc: RuntimeCollector, debug: Boolean)
     val numTasks = stageSubmitted.stageInfo.numTasks
     rc.runtimeStageTaskTracker.numTasksBookKeeper.update(stageId, numTasks)
 
-    val rddIds = stageSubmitted.stageInfo.rddInfos.map(_.id).sorted
-    val scanTables = stageSubmitted.stageInfo.rddInfos
+    // Update the table -> rddId mapping
+    val wscgSign = stageSubmitted.stageInfo.rddInfos
+      .filter(x =>
+        x.scope.isDefined & x.scope.get.name.contains("WholeStageCodegen")
+      )
+      .map(_.scope.get.name.split('(').last.split(')').head)
+      .sorted
+      .mkString(",")
+
+    val table = stageSubmitted.stageInfo.rddInfos
       .filter(_.name == "FileScanRDD")
       .map(_.scope.get.name.split('.').last)
+      .sorted
       .mkString(",")
-    val fileScopeIds = stageSubmitted.stageInfo.rddInfos
-      .filter(_.name == "FileScanRDD")
-      .map(_.scope.get.id)
-      .mkString(",")
-    println(
-      s"stageId=${stageId}, taskNum:$numTasks, rddIds:${rddIds
-        .mkString(",")}, relations:${scanTables}, fileScopeIds:${fileScopeIds}"
-    )
+    val minRddId = stageSubmitted.stageInfo.rddInfos.map(_.id).min
+    rc.qsTotalTaskDurationTracker.table2minRddIds.get(table) match {
+      case Some(minRddIds) =>
+        rc.qsTotalTaskDurationTracker.table2minRddIds
+          .update(table, minRddIds :+ (minRddId, wscgSign))
+      case None =>
+        rc.qsTotalTaskDurationTracker.table2minRddIds
+          .update(table, Array((minRddId, wscgSign)))
+    }
+
+    // store the rddId -> stageId mapping
+    rc.qsTotalTaskDurationTracker.minRddId2StageIds.get(
+      (minRddId, wscgSign)
+    ) match {
+      case Some(stageIds) =>
+        rc.qsTotalTaskDurationTracker.minRddId2StageIds
+          .update((minRddId, wscgSign), stageIds :+ stageId)
+      case None =>
+        rc.qsTotalTaskDurationTracker.minRddId2StageIds
+          .update((minRddId, wscgSign), Array(stageId))
+    }
+
+    if (verbose) {
+      val rddIds = stageSubmitted.stageInfo.rddInfos.map(_.id).sorted
+      println(
+        s"stageId=${stageId}, taskNum:$numTasks, rddIds:${rddIds
+          .mkString(",")}, relations:${table}"
+      )
+    }
   }
 
   override def onStageCompleted(
