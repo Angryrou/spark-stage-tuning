@@ -51,11 +51,6 @@ case class ExposeRuntimeQueryStage(
       case _ =>
     }
 
-    if (debug) {
-      println("----------------------------------------")
-//      println(s"adding a new query stage ${plan.canonicalized}")
-    }
-
     // expose the query stage
     val qsId = rc.addQS(
       qsUnit = F.exposeQS(plan, rc.observedLogicalQS.toSet),
@@ -65,14 +60,14 @@ case class ExposeRuntimeQueryStage(
     )
     rc.observedLogicalQS += plan.logicalLink.get.canonicalized
     rc.observedPhysicalQS += plan.canonicalized
-    if (debug) {
-      val tables = F.getLeafTables(plan)
-      println("----------------------------------------")
-      println(
-        s"added runtime QS-${qsId} (tables: ${tables}) for execId=${executionId.get}"
-      )
-      println(plan.canonicalized)
-    }
+//    if (debug) {
+    val tables = F.getLeafTables(plan)
+    println("----------------------------------------")
+    println(
+      s"added runtime QS-${qsId} (tables: ${tables}) for execId=${executionId.get}"
+    )
+//    println(plan.canonicalized)
+//    }
 
     plan
   }
