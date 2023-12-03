@@ -15,7 +15,9 @@ import org.apache.spark.sql.execution.{
 }
 import org.apache.spark.sql.execution.adaptive.{
   AdaptiveSparkPlanExec,
-  QueryStageExec
+  BroadcastQueryStageExec,
+  QueryStageExec,
+  ShuffleQueryStageExec
 }
 import org.apache.spark.sql.execution.exchange.ReusedExchangeExec
 import org.json4s.JsonDSL._
@@ -90,6 +92,24 @@ class RuntimeCollector() {
     parentTags.foreach(x => assert(qsTag2Id.contains(x)))
     val parentIds = parentTags.map(qsTag2Id(_))
 
+    // shuffle
+    val shuffleParentTags = plan
+      .collectLeaves()
+      .filter(_.isInstanceOf[ShuffleQueryStageExec])
+      .map(x => getUdaoTag(x.asInstanceOf[ShuffleQueryStageExec]))
+    shuffleParentTags.foreach(x => assert(qsTag2Id.contains(x)))
+    val shuffleParentIds = shuffleParentTags.map(qsTag2Id(_))
+
+    // broadcast
+    val broadcastParentTags = plan
+      .collectLeaves()
+      .filter(_.isInstanceOf[BroadcastQueryStageExec])
+      .map(x => getUdaoTag(x.asInstanceOf[BroadcastQueryStageExec]))
+    broadcastParentTags.foreach(x => assert(qsTag2Id.contains(x)))
+    val broadcastParentIds = broadcastParentTags.map(qsTag2Id(_))
+
+    assert(Set(parentIds) == Set(shuffleParentIds ++ broadcastParentIds))
+
     if (plan.subqueriesAll.nonEmpty) {
       unresolvedSubqueries += (curId -> plan.subqueriesAll.map { sub =>
         assert(sub.isInstanceOf[SubqueryExec])
@@ -118,8 +138,10 @@ class RuntimeCollector() {
     qsMap += (curId -> QSUnit(
       qsId = curId,
       tag = qsTag,
-      qsParentIds = parentIds,
-      parentTags = parentTags,
+      shuffleParentIds = shuffleParentIds,
+      shuffleParentTags = shuffleParentTags,
+      broadcastParentIds = broadcastParentIds,
+      broadcastParentTags = broadcastParentTags,
       qsMetrics = F.exposeQSMetrics(plan, observedLogicalQS.toSet),
       hopMap = initialHopMap,
       isFinalHopMap = false,

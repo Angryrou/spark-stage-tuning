@@ -7,31 +7,33 @@ import org.json4s.jackson.JsonMethods.render
 case class QSUnit(
     qsId: Int,
     tag: SparkPlan,
-    var qsParentIds: Seq[Int],
-    var parentTags: Seq[SparkPlan],
+    shuffleParentIds: Seq[Int],
+    shuffleParentTags: Seq[SparkPlan],
+    broadcastParentIds: Seq[Int],
+    broadcastParentTags: Seq[SparkPlan],
     qsMetrics: QSUnitMetrics,
     var hopMap: Seq[(String, Int)],
     var isFinalHopMap: Boolean,
     optimizationTimeInMs: Long,
     stageSnapshot: RunningQueryStageSnapshot,
     thetaR: Map[String, Array[(String, String)]]
-) extends StageBaseUnit(qsId, qsParentIds)
+) extends StageBaseUnit(qsId, shuffleParentIds)
     with MyUnit {
 
   // should not be used. only for testing
-  def updateWithSubqueries(
-      subqueryIds: Seq[Int],
-      subqueryTags: Seq[SparkPlan]
-  ): Unit = {
-    parentIds ++= subqueryIds
-    parentTags ++= subqueryTags
-  }
+//  def updateWithSubqueries(
+//      subqueryIds: Seq[Int],
+//      subqueryTags: Seq[SparkPlan]
+//  ): Unit = {
+//    parentIds ++= subqueryIds
+//    parentTags ++= subqueryTags
+//  }
 
   val json: JsonAST.JObject = qsMetrics.json ~
     ("OptimizationTimeInMs" -> optimizationTimeInMs) ~
     ("RunningQueryStageSnapshot" -> stageSnapshot.toJson) ~
     ("RuntimeConfiguration" -> thetaR.map(x => (x._1, x._2.toList))) ~
-    ("ParentQueryStageIds" -> qsParentIds.toList)
+    ("ParentQueryStageIds" -> (broadcastParentIds ++ shuffleParentIds).toList)
 
   override def toJson: JValue = render(json)
 
