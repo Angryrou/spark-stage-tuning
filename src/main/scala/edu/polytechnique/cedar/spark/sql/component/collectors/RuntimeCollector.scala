@@ -108,7 +108,7 @@ class RuntimeCollector() {
     broadcastParentTags.foreach(x => assert(qsTag2Id.contains(x)))
     val broadcastParentIds = broadcastParentTags.map(qsTag2Id(_))
 
-    assert(Set(parentIds) == Set(shuffleParentIds ++ broadcastParentIds))
+    assert(parentIds.toSet == (shuffleParentIds ++ broadcastParentIds).toSet)
 
     if (plan.subqueriesAll.nonEmpty) {
       unresolvedSubqueries += (curId -> plan.subqueriesAll.map { sub =>
