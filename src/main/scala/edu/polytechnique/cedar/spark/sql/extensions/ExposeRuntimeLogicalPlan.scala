@@ -23,7 +23,7 @@ case class ExposeRuntimeLogicalPlan(
       val lqpId = rc.addLQP(
         lqpUnit = F.exposeLQP(plan),
         startTimeInMs = F.getTimeInMs,
-        snapshot = rc.runtimeStageTaskTracker.snapshot(),
+        snapshot = rc.runtimeSnapshotTracker.snapshot(),
         runtimeKnobsDict = F.getRuntimeConfiguration(spark)
       )
       if (debug) {

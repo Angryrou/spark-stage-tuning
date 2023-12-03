@@ -20,3 +20,5 @@ spark-warehouse
 benchmark-res/dataset-gen
 .DS_Store
 outs
+*.bak
+benchmark-res/libs

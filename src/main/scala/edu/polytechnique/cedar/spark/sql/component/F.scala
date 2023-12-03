@@ -8,6 +8,7 @@ import org.apache.spark.sql.catalyst.plans.logical.{
   UnaryNode,
   Union
 }
+import org.apache.spark.sql.catalyst.trees.TreeNodeTag
 import org.apache.spark.sql.execution.adaptive.{
   LogicalQueryStage,
   QueryStageExec,
@@ -23,10 +24,24 @@ import org.apache.spark.sql.execution.{
   UnionExec
 }
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 import java.util.concurrent.atomic.AtomicInteger
+import scala.collection.concurrent.TrieMap
+import org.jgrapht.{Graph, GraphMapping}
+import org.jgrapht.graph.{DefaultEdge, SimpleGraph}
+import org.jgrapht.alg.isomorphism.{
+  IsomorphicGraphMapping,
+  VF2SubgraphIsomorphismInspector,
+  VF2SubgraphMappingIterator
+}
+
+import java.util.Comparator
 
 object F {
+
+  val UDAO_QS_TAG: TreeNodeTag[SparkPlan] =
+    TreeNodeTag[SparkPlan]("udao-qs-tag")
 
   def getTimeInMs: Long = System.currentTimeMillis()
 
@@ -275,10 +290,10 @@ object F {
     )
   }
 
-  def exposeQS(
+  def exposeQSMetrics(
       plan: SparkPlan,
       observedLQPs: Set[LogicalPlan]
-  ): QSUnit = {
+  ): QSUnitMetrics = {
     assert(plan.logicalLink.isDefined)
     val lqpQsUnit =
       exposeLQP(plan.logicalLink.get, observedLQPs, forQueryStage = true)
@@ -302,7 +317,7 @@ object F {
       rawPlan = plan.toString()
     )
 
-    QSUnit(
+    QSUnitMetrics(
       logicalPlanMetrics = lqpQsUnit.logicalPlanMetrics,
       physicalPlanMetrics = physicalPlanMetrics,
       inputMetaInfo = InputMetaInfo(
@@ -404,10 +419,86 @@ object F {
       "theta_s" -> getConfiguration(spark, "theta_s")
     )
 
-  def getLeafTables(plan: SparkPlan) = plan
+  def getLeafTables(plan: SparkPlan): String = plan
     .collectLeaves()
     .filter(_.isInstanceOf[FileSourceScanExec])
     .map(_.asInstanceOf[FileSourceScanExec].tableIdentifier.get.table)
     .sorted
     .mkString(",")
+
+  def updateHopMap(
+      qsMap: TrieMap[Int, QSUnit],
+      id: Int
+  ): Seq[(String, Int)] = {
+    val qs = qsMap(id)
+    if (qs.isFinalHopMap) return qs.hopMap
+    val parentHopMap = qs.parentIds
+      .flatMap(updateHopMap(qsMap, _))
+      .map(x => (x._1, x._2 + 1))
+    qs.hopMap = (parentHopMap ++ qs.hopMap).sorted
+    qs.isFinalHopMap = true
+    qs.hopMap
+  }
+
+  def computeHopMap(qsMap: TrieMap[Int, QSUnit]): Unit = {
+    val finalQsIdSet = qsMap.keySet -- qsMap.values.flatMap(_.parentIds).toSet
+    // iterate over the final Ids of the main query and subqueries (if any)
+    finalQsIdSet.foreach(updateHopMap(qsMap, _))
+  }
+
+  def serializeHopMap(hopMap: Seq[(String, Int)]): String =
+    hopMap.sorted.map(x => x._1 + x._2.toString).mkString(",")
+
+  case class JGraphNode(id: Int, parentIds: Seq[Int], hopMapSign: String)
+
+  object NodeOrdering extends Ordering[JGraphNode] {
+    override def compare(o1: JGraphNode, o2: JGraphNode): Int =
+      o1.hopMapSign.compareTo(o2.hopMapSign)
+  }
+
+  def matchGraphs(
+      g1: Graph[JGraphNode, DefaultEdge],
+      g2: Graph[JGraphNode, DefaultEdge]
+  ): Map[Int, Int] = {
+
+    val inspector =
+      new VF2SubgraphIsomorphismInspector(
+        g1,
+        g2,
+        NodeOrdering,
+        null
+      )
+
+    assert(inspector.isomorphismExists())
+    val mappings = inspector.getMappings.asScala
+      .asInstanceOf[Iterator[IsomorphicGraphMapping[JGraphNode, DefaultEdge]]]
+      .toSeq
+    assert(mappings.size == 1)
+    val mm =
+      mappings.head.getForwardMapping.asScala.map(x => (x._1.id, x._2.id)).toMap
+    mm
+  }
+
+  def createGraph(
+      unitMap: TrieMap[Int, _ <: StageBaseUnit]
+  ): Graph[JGraphNode, DefaultEdge] = {
+    val jNodeMap = unitMap.map { x =>
+      val jNode = JGraphNode(x._1, x._2.parentIds, x._2.getHopMapSign)
+      (x._1, jNode)
+    }
+    val g = new SimpleGraph[JGraphNode, DefaultEdge](classOf[DefaultEdge])
+    jNodeMap.values.foreach(g.addVertex)
+    jNodeMap.values.foreach { x =>
+      x.parentIds.foreach { y => g.addEdge(jNodeMap(y), x) }
+    }
+    g
+  }
+  def mappingQS2StageGroup(
+      qsMap: TrieMap[Int, _ <: StageBaseUnit],
+      sgMap: TrieMap[Int, _ <: StageBaseUnit]
+  ): Map[Int, Int] = {
+    val g1 = createGraph(qsMap)
+    val g2 = createGraph(sgMap)
+    matchGraphs(g1, g2)
+  }
 }

@@ -4,7 +4,7 @@ import edu.polytechnique.cedar.spark.sql.component.F
 import edu.polytechnique.cedar.spark.sql.component.collectors.RuntimeCollector
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.execution.{FileSourceScanExec, SparkPlan}
+import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.execution.adaptive.QueryStageExec
 import org.apache.spark.sql.execution.exchange.ReusedExchangeExec
 
@@ -15,12 +15,16 @@ case class ExposeRuntimeQueryStage(
 ) extends Rule[SparkPlan] {
 
   override def apply(plan: SparkPlan): SparkPlan = {
+
     val executionId = F.getExecutionId(spark)
     // just for our experiment -- we do not have duplicated commands.
     assert(
       executionId.isDefined && executionId.get <= 1,
       "Assertion failed: we should not have executionId.isEmpty or executionId > 2"
     )
+    // add our TAG!
+    plan.setTagValue(F.UDAO_QS_TAG, plan.canonicalized)
+
     // only expose the query stage with executionId = 1
     if (executionId.get != 1)
       return plan
@@ -52,34 +56,18 @@ case class ExposeRuntimeQueryStage(
     }
 
     // expose the query stage
-    val qsId = rc.addQS(
-      qsUnit = F.exposeQS(plan, rc.observedLogicalQS.toSet),
-      startTimeInMs = F.getTimeInMs,
-      snapshot = rc.runtimeStageTaskTracker.snapshot(),
-      runtimeKnobsDict = F.getRuntimeConfiguration(spark)
-    )
+    rc.updateUdaoTag2Metrics(plan, spark)
     rc.observedLogicalQS += plan.logicalLink.get.canonicalized
     rc.observedPhysicalQS += plan.canonicalized
 
-    val table = F.getLeafTables(plan)
-    rc.qsTotalTaskDurationTracker.table2QSIds.get(table) match {
-      case Some(qsIds) =>
-        rc.qsTotalTaskDurationTracker.table2QSIds.update(
-          table,
-          qsIds :+ qsId
-        )
-      case None =>
-        rc.qsTotalTaskDurationTracker.table2QSIds.update(table, Array(qsId))
+    if (debug) {
+      val tables = F.getLeafTables(plan)
+      println("----------------------------------------")
+      println(
+        s"added runtime QS-${rc.getQsId} (tables: ${tables})"
+      )
+//      println(plan.canonicalized)
     }
-
-//    if (debug) {
-    val tables = F.getLeafTables(plan)
-    println("----------------------------------------")
-    println(
-      s"added runtime QS-${qsId} (tables: ${tables}) for execId=${executionId.get}"
-    )
-//    println(plan.canonicalized)
-//    }
 
     plan
   }

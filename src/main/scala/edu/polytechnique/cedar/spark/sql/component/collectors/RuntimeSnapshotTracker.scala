@@ -7,7 +7,7 @@ import org.apache.spark.scheduler.TaskInfo
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 
-class RuntimeStageTaskTracker {
+class RuntimeSnapshotTracker {
 
   val numTasksBookKeeper: TrieMap[Int, Int] = new TrieMap()
   val startedTasksNumTracker: TrieMap[Int, Int] = new TrieMap()

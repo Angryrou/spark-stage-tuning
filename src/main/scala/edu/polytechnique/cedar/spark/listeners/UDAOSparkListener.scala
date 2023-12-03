@@ -1,7 +1,6 @@
 package edu.polytechnique.cedar.spark.listeners
 
 import edu.polytechnique.cedar.spark.sql.component.collectors.RuntimeCollector
-import org.apache.spark.SparkContext
 import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.scheduler.{
   SparkListener,
@@ -26,13 +25,15 @@ case class UDAOSparkListener(
     verbose: Boolean = true
 ) extends SparkListener {
 
+  val listLeafStageIds: mutable.Set[Int] = mutable.Set[Int]()
+
   override def onJobStart(
       jobStart: SparkListenerJobStart
   ): Unit = {
     val desc =
       jobStart.properties.getProperty("spark.job.description")
     if (desc != null && desc.contains("Listing leaf files and directories")) {
-      rc.qsTotalTaskDurationTracker.listLeafStageIds ++= jobStart.stageIds
+      listLeafStageIds ++= jobStart.stageIds
     }
   }
 
@@ -41,56 +42,20 @@ case class UDAOSparkListener(
   ): Unit = {
     val stageId = stageSubmitted.stageInfo.stageId
     val numTasks = stageSubmitted.stageInfo.numTasks
-    rc.runtimeStageTaskTracker.numTasksBookKeeper.update(stageId, numTasks)
+    rc.runtimeSnapshotTracker.numTasksBookKeeper.update(stageId, numTasks)
 
-    if (rc.qsTotalTaskDurationTracker.listLeafStageIds.contains(stageId)) {
+    if (listLeafStageIds.contains(stageId)) {
       if (debug) {
         println(
           s"bypass stageId=${stageId} because it is a list-leaf-files-and-directories stage"
         )
       }
     } else {
-      // Update the table -> rddId mapping
-      val wscgSign = stageSubmitted.stageInfo.rddInfos
-        .filter(x =>
-          x.scope.isDefined & x.scope.get.name.contains("WholeStageCodegen")
-        )
-        .map(_.scope.get.name.split('(').last.split(')').head)
-        .sorted
-        .mkString(",")
-
-      val table = stageSubmitted.stageInfo.rddInfos
-        .filter(_.name == "FileScanRDD")
-        .map(_.scope.get.name.split('.').last)
-        .sorted
-        .mkString(",")
-      val minRddId = stageSubmitted.stageInfo.rddInfos.map(_.id).min
-      rc.qsTotalTaskDurationTracker.table2minRddIds.get(table) match {
-        case Some(minRddIds) =>
-          rc.qsTotalTaskDurationTracker.table2minRddIds
-            .update(table, minRddIds | Set((minRddId, wscgSign)))
-        case None =>
-          rc.qsTotalTaskDurationTracker.table2minRddIds
-            .update(table, Set((minRddId, wscgSign)))
-      }
-
-      // store the rddId -> stageId mapping
-      rc.qsTotalTaskDurationTracker.minRddId2StageIds.get(
-        (minRddId, wscgSign)
-      ) match {
-        case Some(stageIds) =>
-          rc.qsTotalTaskDurationTracker.minRddId2StageIds
-            .update((minRddId, wscgSign), stageIds :+ stageId)
-        case None =>
-          rc.qsTotalTaskDurationTracker.minRddId2StageIds
-            .update((minRddId, wscgSign), Array(stageId))
-      }
-
+      rc.runtimeDependencyTracker.addStage(stageSubmitted)
+      // verbose for the debug purpose
       if (verbose) {
-        val rddIds = stageSubmitted.stageInfo.rddInfos.map(_.id).sorted
         println(
-          s"stageId=${stageId}, taskNum:$numTasks, rddIds:${rddIds
-            .mkString(",")}, relations:${table}"
+          s"stageId=${stageId}, taskNum:$numTasks, ${rc.runtimeDependencyTracker.stageMap(stageId)}"
         )
       }
     }
@@ -100,14 +65,14 @@ case class UDAOSparkListener(
       stageCompleted: SparkListenerStageCompleted
   ): Unit = {
     val stageId = stageCompleted.stageInfo.stageId
-    if (rc.qsTotalTaskDurationTracker.listLeafStageIds.contains(stageId)) {
+    if (listLeafStageIds.contains(stageId)) {
       if (debug) {
         println(
           s"bypass stageId=${stageId} because it is a list-leaf-files-and-directories stage"
         )
       }
     } else {
-      rc.qsTotalTaskDurationTracker.stageStartEndTimeDict
+      rc.runtimeDependencyTracker.stageStartEndTimeDict
         .update(
           stageId,
           (
@@ -115,6 +80,8 @@ case class UDAOSparkListener(
             stageCompleted.stageInfo.completionTime.get
           )
         )
+      // todo: add IO metrics for each stage
+
     }
   }
 
@@ -124,12 +91,12 @@ case class UDAOSparkListener(
     val stageId = taskStart.stageId
     val info = taskStart.taskInfo
     if (info != null) {
-      rc.runtimeStageTaskTracker.startedTasksNumTracker.get(stageId) match {
+      rc.runtimeSnapshotTracker.startedTasksNumTracker.get(stageId) match {
         case Some(v) =>
-          rc.runtimeStageTaskTracker.startedTasksNumTracker
+          rc.runtimeSnapshotTracker.startedTasksNumTracker
             .update(stageId, v + 1)
         case None =>
-          rc.runtimeStageTaskTracker.startedTasksNumTracker.update(stageId, 1)
+          rc.runtimeSnapshotTracker.startedTasksNumTracker.update(stageId, 1)
       }
     }
 
@@ -139,31 +106,43 @@ case class UDAOSparkListener(
     val info = taskEnd.taskInfo
     val metrics = taskEnd.taskMetrics
     if (info != null && metrics != null) {
-      rc.runtimeStageTaskTracker.taskMetricsMap.getOrElseUpdate(
+      rc.runtimeSnapshotTracker.taskMetricsMap.getOrElseUpdate(
         stageId,
         mutable.Buffer[(TaskInfo, TaskMetrics)]()
       ) += ((info, metrics))
-      rc.qsTotalTaskDurationTracker.stageTotalTasksDurationDict.get(
+      rc.runtimeDependencyTracker.stageTotalTasksDurationDict.get(
         stageId
       ) match {
         case Some(v) =>
-          rc.qsTotalTaskDurationTracker.stageTotalTasksDurationDict
+          rc.runtimeDependencyTracker.stageTotalTasksDurationDict
             .update(stageId, v + info.duration)
         case None =>
-          rc.qsTotalTaskDurationTracker.stageTotalTasksDurationDict
+          rc.runtimeDependencyTracker.stageTotalTasksDurationDict
             .update(stageId, info.duration)
       }
     }
     if (
-      rc.runtimeStageTaskTracker.taskMetricsMap(stageId).size ==
-        rc.runtimeStageTaskTracker.numTasksBookKeeper(stageId)
+      rc.runtimeSnapshotTracker.taskMetricsMap(stageId).size ==
+        rc.runtimeSnapshotTracker.numTasksBookKeeper(stageId)
     )
-      rc.runtimeStageTaskTracker.removeStageById(stageId)
+      rc.runtimeSnapshotTracker.removeStageById(stageId)
   }
 
   override def onOtherEvent(event: SparkListenerEvent): Unit = {
 
     event match {
+
+//      case e: SparkListenerSQLAllChildMaterialized =>
+//        assert(
+//          e.executionId == 1,
+//          "Assertion failed: we should not have executionId != 1 using AQE"
+//        )
+//        rc.flushQSs(
+//          planId = e.planId,
+//          isSubquery = e.isSubquery,
+//          recordedStages = e.stagesToReplace,
+//          aqeContext = e.context
+//        )
 
       case e: SparkListenerSQLExecutionStart =>
         assert(
