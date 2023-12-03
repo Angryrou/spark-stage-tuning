@@ -447,16 +447,16 @@ object F {
   }
 
   def serializeHopMap(hopMap: Seq[(String, Int)]): String =
-    hopMap.sorted.map(x => x._1 + x._2.toString).mkString(",")
+    hopMap.sorted.map(x => x._1 + "x" + x._2.toString).mkString(",")
 
   case class JGraphNode(id: Int, parentIds: Seq[Int], hopMapSign: String)
 
-  object NodeOrdering extends Ordering[JGraphNode] {
+  private object NodeOrdering extends Ordering[JGraphNode] {
     override def compare(o1: JGraphNode, o2: JGraphNode): Int =
       o1.hopMapSign.compareTo(o2.hopMapSign)
   }
 
-  def matchGraphs(
+  private def matchGraphs(
       g1: Graph[JGraphNode, DefaultEdge],
       g2: Graph[JGraphNode, DefaultEdge]
   ): Map[Int, Int] = {

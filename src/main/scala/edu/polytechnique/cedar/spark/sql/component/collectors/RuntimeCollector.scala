@@ -74,6 +74,8 @@ class RuntimeCollector() {
     curId
   }
 
+  private val tableCounter = new TrieMap[String, Int]()
+
   def updateUdaoTag2Metrics(plan: SparkPlan, spark: SparkSession): Unit = {
     val curId = qsId.getAndIncrement()
     val qsTag = plan.canonicalized
@@ -101,7 +103,16 @@ class RuntimeCollector() {
       .collectLeaves()
       .filter(_.isInstanceOf[FileSourceScanExec])
       .map(_.asInstanceOf[FileSourceScanExec].tableIdentifier.get.table)
-      .map(tableName => (tableName, 0))
+      .map { tableName =>
+        tableCounter.get(tableName) match {
+          case Some(count) =>
+            tableCounter.update(tableName, count + 1)
+            (tableName + (count + 1).toString, 0)
+          case None =>
+            tableCounter.update(tableName, 1)
+            (tableName + "1", 0)
+        }
+      }
       .sorted
 
     qsMap += (curId -> QSUnit(
@@ -191,6 +202,8 @@ class RuntimeCollector() {
       }
 
     // construct hopMap for each query stage by (1) find the root node, (2) post-order traverse the tree
+    F.computeHopMap(qsMap)
+
     val qsHopMaps = qsMap.toSeq
       .groupBy(x => F.seralizeHopMap(x._2.hopMap))
       .mapValues(_.map(_._1).sorted)
@@ -207,6 +220,19 @@ class RuntimeCollector() {
 
     // compute the hopMap to form the label of each node => speedup matching.
     F.computeHopMap(qsMap)
+    val qsHopMaps = qsMap.toSeq
+      .groupBy(x => F.serializeHopMap(x._2.hopMap))
+      .mapValues(_.map(_._1).sorted)
+    val sgHopMaps = runtimeDependencyTracker.stageGroupMap.toSeq
+      .groupBy(x => F.serializeHopMap(x._2.hopMap))
+      .mapValues(_.map(_._1).sorted)
+    println("qsHopMaps", qsHopMaps.toSeq.sortBy(_._1))
+    println("sgHopMaps", sgHopMaps.toSeq.sortBy(_._1))
+    assert(
+      qsHopMaps.map(x => (x._1, x._2.size)).toSeq.sorted ==
+        sgHopMaps.map(x => (x._1, x._2.size)).toSeq.sorted
+    )
+
     val qsId2sgIdMapping = F.mappingQS2StageGroup(qsMap, sgMap)
     val qsId2QSResultTimes =
       runtimeDependencyTracker.getQsId2QSResultTimes(qsId2sgIdMapping)

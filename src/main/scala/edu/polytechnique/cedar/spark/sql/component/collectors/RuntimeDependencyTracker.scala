@@ -20,6 +20,8 @@ class RuntimeDependencyTracker {
   val stageTotalTasksDurationDict: TrieMap[Int, Long] = new TrieMap()
   val stageStartEndTimeDict: TrieMap[Int, (Long, Long)] = new TrieMap()
 
+  private val tableCounter: TrieMap[String, Int] = new TrieMap()
+
   def addStage(stageSubmitted: SparkListenerStageSubmitted): Unit = {
     val rddInfos = stageSubmitted.stageInfo.rddInfos
     val stageId = stageSubmitted.stageInfo.stageId
@@ -44,9 +46,17 @@ class RuntimeDependencyTracker {
     nonParentRddInfos.foreach(rddInfo => assert(rddInfo.name == "FileScanRDD"))
     val hopMap = (parentStageIds.flatMap(
       stageMap(_).hopMap.map(x => (x._1, x._2 + 1))
-    ) ++ nonParentRddInfos.map(rddInfo =>
-      (rddInfo.scope.get.name.split('.').last, 0)
-    )).sorted
+    ) ++ nonParentRddInfos.map { rddInfo =>
+      val table = rddInfo.scope.get.name.split('.').last
+      tableCounter.get(table) match {
+        case Some(count) =>
+          tableCounter.update(table, count + 1)
+          (table + (count + 1).toString, 0)
+        case None =>
+          tableCounter.update(table, 1)
+          (table + "1", 0)
+      }
+    }).sorted
 
     // Add a SUnit to stageMap
     stageMap += (stageId -> SUnit(
