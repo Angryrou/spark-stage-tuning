@@ -5,10 +5,7 @@ import edu.polytechnique.cedar.spark.listeners.{
   UDAOQueryExecutionListener,
   UDAOSparkListener
 }
-import edu.polytechnique.cedar.spark.sql.component.collectors.{
-  InitialCollector,
-  RuntimeCollector
-}
+import edu.polytechnique.cedar.spark.sql.component.collectors.{InitialCollector, RuntimeCollector}
 import edu.polytechnique.cedar.spark.sql.extensions.ExposeRuntimeLogicalPlan
 import org.apache.spark.sql.SparkSession
 

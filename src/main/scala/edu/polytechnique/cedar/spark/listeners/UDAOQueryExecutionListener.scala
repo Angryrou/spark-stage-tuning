@@ -1,7 +1,6 @@
 package edu.polytechnique.cedar.spark.listeners
-
-import edu.polytechnique.cedar.spark.sql.component.collectors.InitialCollector
 import edu.polytechnique.cedar.spark.sql.component.F
+import edu.polytechnique.cedar.spark.sql.component.collectors.InitialCollector
 import org.apache.spark.sql.execution.QueryExecution
 import org.apache.spark.sql.util.QueryExecutionListener
 

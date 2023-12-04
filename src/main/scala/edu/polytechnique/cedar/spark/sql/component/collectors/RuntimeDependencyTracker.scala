@@ -1,4 +1,5 @@
 package edu.polytechnique.cedar.spark.sql.component.collectors
+
 import edu.polytechnique.cedar.spark.sql.component.{
   SGUnit,
   SUnit,

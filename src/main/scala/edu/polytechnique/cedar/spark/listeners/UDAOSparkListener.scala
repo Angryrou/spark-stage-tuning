@@ -1,5 +1,4 @@
 package edu.polytechnique.cedar.spark.listeners
-
 import edu.polytechnique.cedar.spark.sql.component.collectors.RuntimeCollector
 import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.scheduler.{

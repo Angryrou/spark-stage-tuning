@@ -1,5 +1,4 @@
 package edu.polytechnique.cedar.spark.sql.extensions
-
 import edu.polytechnique.cedar.spark.sql.component.F
 import edu.polytechnique.cedar.spark.sql.component.collectors.RuntimeCollector
 import org.apache.spark.sql.SparkSession

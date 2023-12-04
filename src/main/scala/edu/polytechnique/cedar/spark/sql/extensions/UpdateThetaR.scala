@@ -1,9 +1,9 @@
 package edu.polytechnique.cedar.spark.sql.extensions
-import edu.polytechnique.cedar.spark.sql.component.collectors.RuntimeCollector
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.rules.Rule
 import edu.polytechnique.cedar.spark.sql.component.F
+import edu.polytechnique.cedar.spark.sql.component.collectors.RuntimeCollector
 
 case class UpdateThetaR(
     spark: SparkSession,
