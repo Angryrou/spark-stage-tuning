@@ -3,6 +3,7 @@ package edu.polytechnique.cedar.spark.sql.component.collectors
 import edu.polytechnique.cedar.spark.sql.component.{
   F,
   LQPUnit,
+  QSIndex,
   QSUnit,
   RunningQueryStageSnapshot
 }
@@ -20,6 +21,7 @@ import org.apache.spark.sql.execution.adaptive.{
   ShuffleQueryStageExec
 }
 import org.apache.spark.sql.execution.exchange.ReusedExchangeExec
+import org.apache.spark.sql.execution.ui.SparkListenerOnQueryStageSubmitted
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
@@ -78,7 +80,7 @@ class RuntimeCollector() {
 
   private val tableCounter = new TrieMap[String, Int]()
 
-  def updateUdaoTag2Metrics(plan: SparkPlan, spark: SparkSession): Unit = {
+  def updateUdaoTag2Metrics(plan: SparkPlan, spark: SparkSession): Int = {
     val curId = qsId.getAndIncrement()
     val qsTag = plan.canonicalized
     assert(!qsTag2Id.contains(qsTag))
@@ -150,6 +152,7 @@ class RuntimeCollector() {
       thetaR = F.getRuntimeConfiguration(spark)
     ))
 
+    curId
   }
 
   private def getUdaoTag(queryStage: QueryStageExec): SparkPlan = {
@@ -165,6 +168,38 @@ class RuntimeCollector() {
         assert(planTag.isDefined)
         qsExchangeId2Tag += (qs.id -> planTag.get)
         planTag.get
+    }
+  }
+
+  val qsMetaMap: TrieMap[Int, TrieMap[Int, QSIndex]] = new TrieMap()
+
+  def addQSMeta(e: SparkListenerOnQueryStageSubmitted): Unit = {
+    e.optimizedStageOrder match {
+      case Some(optimizedStageOrder) =>
+        val qsIndex = QSIndex(
+          waveId = e.waveId,
+          idInWave = e.idInWave,
+          planId = e.planId,
+          qsId = e.qsId,
+          optimizedStageOrder = optimizedStageOrder,
+          subqueryIds = e.subqueryIds,
+          isSubquery = e.isSubquery,
+          isLastQueryStage = e.isLastQueryStage
+        )
+        qsMetaMap.get(e.waveId) match {
+          case Some(waveMetaMap) =>
+            assert(!waveMetaMap.contains(e.idInWave))
+            waveMetaMap += (e.idInWave -> qsIndex)
+          case None =>
+            val waveMetaMap = new TrieMap[Int, QSIndex]()
+            waveMetaMap += (e.idInWave -> qsIndex)
+            qsMetaMap += (e.waveId -> waveMetaMap)
+        }
+        println(s"addQSMeta: $qsIndex")
+      case None =>
+        println(
+          s"skip: wave:${e.waveId}-${e.idInWave} in plan.${e.planId}->QS.${e.qsId}"
+        )
     }
   }
 
@@ -199,6 +234,13 @@ class RuntimeCollector() {
       s"Assertion failed: ${qsMap.size} != ${sgMap.size}"
     )
 
+    val mapping = F.mappingQSMeta2StageGroup(qsMetaMap, qsMap, sgMap)
+    qsMap
+      .map(x => (x._1, sgMap(mapping(x._1)).stageIds.toList))
+      .toSeq
+      .sortBy(_._1)
+      .foreach(println)
+
     /*
 
     N.B. (1) do not include subqueries in the dependency because Spark stages does not have the information.
@@ -222,24 +264,9 @@ class RuntimeCollector() {
         assert(qsMap.contains(curId))
         qsMap(curId).updateWithSubqueries(subqueryIds, subqueryTags)
       }
-
-    // construct hopMap for each query stage by (1) find the root node, (2) post-order traverse the tree
-    F.computeHopMap(qsMap)
-
-    val qsHopMaps = qsMap.toSeq
-      .groupBy(x => F.seralizeHopMap(x._2.hopMap))
-      .mapValues(_.map(_._1).sorted)
-    val sgHopMaps = runtimeDependencyTracker.stageGroupMap.toSeq
-      .groupBy(x => F.seralizeHopMap(x._2.hopMap))
-      .mapValues(_.map(_._1).sorted)
-    println("qsHopMaps", qsHopMaps.toSeq.sortBy(_._1))
-    println("sgHopMaps", sgHopMaps.toSeq.sortBy(_._1))
-    assert(
-      qsHopMaps.map(x => (x._1, x._2.size)).toSeq.sorted ==
-        sgHopMaps.map(x => (x._1, x._2.size)).toSeq.sorted
-    )
      */
 
+    // construct hopMap for each query stage by (1) find the root node, (2) post-order traverse the tree
     // compute the hopMap to form the label of each node => speedup matching.
     F.computeHopMap(qsMap)
     val qsHopMaps = qsMap.toSeq
@@ -258,6 +285,33 @@ class RuntimeCollector() {
     val qsId2sgIdMapping = F.mappingQS2StageGroup(qsMap, sgMap)
     val qsId2QSResultTimes =
       runtimeDependencyTracker.getQsId2QSResultTimes(qsId2sgIdMapping)
+
+    assert(
+      qsMap.keySet == qsMetaMap.values
+        .flatMap(_.values.map(_.optimizedStageOrder))
+        .toSet
+    )
+    val mapping2 = F.mappingQSMeta2StageGroup(qsMetaMap, qsMap, sgMap)
+
+    val l1 = qsId2sgIdMapping.toSeq.sortBy(_._2).map(_._1)
+    val l2 = mapping2.toSeq.sortBy(_._2).map(_._1)
+
+    if (l1 != l2) {
+      println("--- qsId2sgIdMapping ---")
+      qsMap
+        .map(x => (x._1, sgMap(qsId2sgIdMapping(x._1)).stageIds.toList))
+        .toSeq
+        .sortBy(_._1)
+        .foreach(println)
+
+      println("--- qsId2sgIdMapping2 ---")
+      qsMap
+        .map(x => (x._1, sgMap(mapping2(x._1)).stageIds.toList))
+        .toSeq
+        .sortBy(_._1)
+        .foreach(println)
+    }
+    assert(l1 == l2, s"$qsId2sgIdMapping != $mapping2")
 
     val qsMap2 = qsMap.map(x =>
       (

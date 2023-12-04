@@ -13,6 +13,7 @@ import org.apache.spark.scheduler.{
   TaskInfo
 }
 import org.apache.spark.sql.execution.ui.{
+  SparkListenerOnQueryStageSubmitted,
   SparkListenerSQLExecutionEnd,
   SparkListenerSQLExecutionStart
 }
@@ -128,69 +129,30 @@ case class UDAOSparkListener(
       rc.runtimeSnapshotTracker.removeStageById(stageId)
   }
 
-  override def onOtherEvent(event: SparkListenerEvent): Unit = {
-
+  override def onOtherEvent(event: SparkListenerEvent): Unit =
     event match {
 
-//      case e: SparkListenerSQLAllChildMaterialized =>
-//        assert(
-//          e.executionId == 1,
-//          "Assertion failed: we should not have executionId != 1 using AQE"
-//        )
-//        rc.flushQSs(
-//          planId = e.planId,
-//          isSubquery = e.isSubquery,
-//          recordedStages = e.stagesToReplace,
-//          aqeContext = e.context
-//        )
+      case e: SparkListenerOnQueryStageSubmitted =>
+        rc.addQSMeta(e)
 
       case e: SparkListenerSQLExecutionStart =>
-        assert(
-          e.executionId == 1 || e.executionId == 0,
-          "Assertion failed: we should not have executionId.isEmpty or executionId > 2"
-        )
-        if (e.executionId == 1) {
-          rc.setSQLStartTimeInMs(e.time)
-          if (debug) {
-            println(
-              s"added SQLStartTimeInMs ${e.time} for execId=${e.executionId}"
-            )
-          }
-        } else {
-          if (debug) {
-            println(
-              s"bypass SQLStartTimeInMs ${e.time} for execId=${e.executionId}"
-            )
-          }
+        e.executionId match {
+          case 1 => rc.setSQLStartTimeInMs(e.time)
+          case 0 =>
+          case _ => new Exception("Should have executionId <= 1")
         }
 
       case e: SparkListenerSQLExecutionEnd =>
         assert(
-          e.executionId == 1 || e.executionId == 0,
-          "Assertion failed: we should not have executionId.isEmpty or executionId > 2"
-        )
-        assert(
           e.errorMessage.isEmpty || e.errorMessage.get.isEmpty,
           e.errorMessage
         )
-        if (e.executionId == 1) {
-          rc.setSQLEndTimeInMs(e.time)
-          if (debug) {
-            println(
-              s"added SQLEndTimeInMs ${e.time} for execId=${e.executionId}"
-            )
-          }
-        } else {
-          if (debug) {
-            println(
-              s"bypass SQLEndTimeInMs ${e.time} for execId=${e.executionId}"
-            )
-          }
+        e.executionId match {
+          case 1 => rc.setSQLEndTimeInMs(e.time)
+          case 0 =>
+          case _ => new Exception("Should have executionId <= 1")
         }
-
       case _ =>
     }
-    super.onOtherEvent(event)
-  }
 
 }

@@ -5,14 +5,19 @@ import edu.polytechnique.cedar.spark.sql.component.collectors.RuntimeCollector
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.SparkPlan
+import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec.TEMP_OPTIMIZED_STAGE_ORDER_TAG
 import org.apache.spark.sql.execution.adaptive.QueryStageExec
 import org.apache.spark.sql.execution.exchange.ReusedExchangeExec
+
+import scala.collection.concurrent.TrieMap
 
 case class ExposeRuntimeQueryStage(
     spark: SparkSession,
     rc: RuntimeCollector,
     debug: Boolean
 ) extends Rule[SparkPlan] {
+
+  val canon2IdMap: TrieMap[SparkPlan, Int] = new TrieMap()
 
   override def apply(plan: SparkPlan): SparkPlan = {
 
@@ -36,6 +41,11 @@ case class ExposeRuntimeQueryStage(
           s"This query stage (${F.getLeafTables(plan)}) has been observed before in plan.canonicalized."
         )
       }
+      assert(canon2IdMap.contains(plan.canonicalized))
+      plan.setTagValue(
+        TEMP_OPTIMIZED_STAGE_ORDER_TAG,
+        canon2IdMap(plan.canonicalized)
+      )
       return plan
     }
     if (rc.observedLogicalQS.contains(plan.logicalLink.get.canonicalized)) {
@@ -56,7 +66,9 @@ case class ExposeRuntimeQueryStage(
     }
 
     // expose the query stage
-    rc.updateUdaoTag2Metrics(plan, spark)
+    val optimizedStageOrder = rc.updateUdaoTag2Metrics(plan, spark)
+    plan.setTagValue(TEMP_OPTIMIZED_STAGE_ORDER_TAG, optimizedStageOrder)
+    canon2IdMap += (plan.canonicalized -> optimizedStageOrder)
     rc.observedLogicalQS += plan.logicalLink.get.canonicalized
     rc.observedPhysicalQS += plan.canonicalized
 
@@ -64,9 +76,8 @@ case class ExposeRuntimeQueryStage(
       val tables = F.getLeafTables(plan)
       println("----------------------------------------")
       println(
-        s"added runtime QS-${rc.getQsId} (tables: ${tables})"
+        s"added runtime QS-${optimizedStageOrder} (tables: ${tables})"
       )
-//      println(plan.canonicalized)
     }
 
     plan

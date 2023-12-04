@@ -501,4 +501,118 @@ object F {
     val g2 = createGraph(sgMap)
     matchGraphs(g1, g2)
   }
+
+  def addToQueue(
+      mainMetaMap: mutable.TreeMap[(Int, Int), QSIndex],
+      subMetaMapGroups: mutable.Map[Int, mutable.TreeMap[(Int, Int), QSIndex]],
+      subqueryFinished: mutable.Map[Int, Boolean]
+  ): mutable.ArrayBuffer[QSIndex] = {
+    val qsExecutionQueue = mutable.ArrayBuffer[QSIndex]()
+    mainMetaMap.foreach { case ((waveId, idInWave), qsIndex) =>
+      assert(qsIndex.waveId == waveId && qsIndex.idInWave == idInWave)
+      if (qsIndex.hasSubqueries) {
+        qsIndex.subqueryIds.foreach { subId =>
+          if (!subqueryFinished(subId)) {
+            addToQueue(
+              subMetaMapGroups(subId),
+              subMetaMapGroups,
+              subqueryFinished
+            ).foreach(qsExecutionQueue.append(_))
+          }
+        }
+        qsExecutionQueue.append(qsIndex)
+      } else {
+        qsExecutionQueue.append(qsIndex)
+        if (qsIndex.isLastQueryStage && qsIndex.isSubquery)
+          subqueryFinished.update(qsIndex.planId, true)
+      }
+    }
+    qsExecutionQueue
+  }
+
+  def mappingQSMeta2StageGroup(
+      qsMetaMap: TrieMap[Int, TrieMap[Int, QSIndex]],
+      qsMap: TrieMap[Int, QSUnit],
+      sgMap: TrieMap[Int, SGUnit]
+  ): Map[Int, Int] = {
+//    val qsExecutionQueue = mutable.ArrayBuffer[QSIndex]()
+    val subqueryFinished = mutable.Map[Int, Boolean]()
+
+    val mainMetaMap = mutable.TreeMap[(Int, Int), QSIndex]()
+    val subMetaMapGroups =
+      mutable.Map[Int, mutable.TreeMap[(Int, Int), QSIndex]]()
+    val waves = qsMetaMap.keySet.toSeq.sorted
+    waves.foreach { wave =>
+      val idInWaves = qsMetaMap(wave).keySet.toSeq.sorted
+      idInWaves.foreach { idInWave =>
+        val qsIndex = qsMetaMap(wave)(idInWave)
+        assert(qsIndex.idInWave == idInWave && qsIndex.waveId == wave)
+        if (qsIndex.isSubquery) {
+          if (!subMetaMapGroups.contains(qsIndex.planId))
+            subMetaMapGroups += (qsIndex.planId -> mutable.TreeMap())
+          subqueryFinished += (qsIndex.planId -> false)
+          subMetaMapGroups(qsIndex.planId) += ((wave, idInWave) -> qsIndex)
+        } else {
+          mainMetaMap += ((wave, idInWave) -> qsIndex)
+        }
+      }
+    }
+
+    val qsExecutionQueue =
+      addToQueue(mainMetaMap, subMetaMapGroups, subqueryFinished)
+
+//    val holdingQSIndexBuffer = mutable.ArrayBuffer[QSIndex]()
+//    val waves = qsMetaMap.keySet.toSeq.sorted
+//    waves.foreach { wave =>
+//      val idInWaves = qsMetaMap(wave).keySet.toSeq.sorted
+//      idInWaves.foreach { idInWave =>
+//        val qsIndex = qsMetaMap(wave)(idInWave)
+//        if (qsIndex.subqueryIds.nonEmpty) {
+//          qsIndex.subqueryIds.foreach(subqueryFinished.update(_, false))
+//          holdingQSIndexBuffer.append(qsIndex)
+//        } else {
+//          qsExecutionQueue.append(qsIndex)
+//          if (qsIndex.isLastQueryStage && qsIndex.isSubquery) {
+//            subqueryFinished.update(qsIndex.planId, true)
+//            holdingQSIndexBuffer.foreach { qsIndex =>
+//              if (qsIndex.subqueryIds.forall(subqueryFinished(_))) {
+//                qsExecutionQueue.append(qsIndex)
+//              }
+//            }
+//            holdingQSIndexBuffer --= holdingQSIndexBuffer.filter(qsIndex =>
+//              qsIndex.subqueryIds.forall(subqueryFinished(_))
+//            )
+//          }
+//        }
+//      }
+//    }
+
+    val sgTableList = sgMap.values
+      .map(x => (x.sgId, x.hopMap.filter(_._2 == 0).map(_._1).mkString(",")))
+      .groupBy(_._2)
+      .mapValues(_.map(_._1).toSeq.sorted)
+
+    val mapping = mutable.Map[Int, Int]()
+
+    sgTableList.foreach { case (table, sgIdList) =>
+      qsExecutionQueue
+        .filter(x =>
+          qsMap(x.optimizedStageOrder).hopMap
+            .filter(_._2 == 0)
+            .map(_._1)
+            .mkString(",") == table
+        )
+        .map(_.optimizedStageOrder)
+        .zip(sgIdList)
+        .foreach(x => mapping += x)
+    }
+    assert(mapping.size == qsExecutionQueue.size)
+
+    mapping.toMap
+//    val list1 = qsExecutionQueue.map(_.optimizedStageOrder)
+//    val list2 = sgMap.keySet.toSeq.sorted
+//    assert(list1.size == list2.size)
+//    list1.zip(list2).toMap
+  }
+
 }
