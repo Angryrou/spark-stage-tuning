@@ -68,7 +68,7 @@ case class ExportRuntimeQueryStage(
 
     // export the query stage
     val optId =
-      rc.exportQueryStageForOptimization(plan, spark, observedLogicalQS.toSet)
+      rc.exportRuntimeQueryStageBeforeOptimization(plan, spark, observedLogicalQS.toSet)
 
     plan.setTagValue(TEMP_OPTIMIZED_STAGE_ORDER_TAG, optId)
     canon2IdMap += (plan.canonicalized -> optId)

@@ -23,7 +23,7 @@ class RuntimeQueryStageCollector(verbose: Boolean = false) {
 
   def getQsOptId: Int = qsOptId.get()
 
-  def exportQueryStageForOptimization(
+  def exportRuntimeQueryStageBeforeOptimization(
       plan: SparkPlan,
       spark: SparkSession,
       observedLogicalQS: Set[LogicalPlan],
