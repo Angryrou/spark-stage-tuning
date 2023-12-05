@@ -78,7 +78,7 @@ class RuntimeQueryStageCollector(verbose: Boolean = false) {
       assert(qsIndex.waveId == waveId && qsIndex.idInWave == idInWave)
       if (qsIndex.hasSubqueries) {
         qsIndex.subqueryIds.foreach { subId =>
-          if (!subqueryFinished(subId)) {
+          if (subqueryFinished.contains(subId) && !subqueryFinished(subId)) {
             addToQueue(
               subMetaMapGroups(subId),
               subMetaMapGroups,
