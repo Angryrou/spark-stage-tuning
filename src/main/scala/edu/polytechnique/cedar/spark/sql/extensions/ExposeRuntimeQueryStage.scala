@@ -13,9 +13,9 @@ import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 
 case class ExposeRuntimeQueryStage(
-                                    spark: SparkSession,
-                                    rc: UdaoCollector,
-                                    debug: Boolean
+    spark: SparkSession,
+    rc: UdaoCollector,
+    debug: Boolean
 ) extends Rule[SparkPlan] {
 
   private val observedLogicalQS = mutable.Set[LogicalPlan]()
@@ -66,8 +66,9 @@ case class ExposeRuntimeQueryStage(
       case _ =>
     }
 
-    // expose the query stage
-    val optId = rc.exposeQueryStageForOptimization(plan, spark, observedLogicalQS.toSet)
+    // export the query stage
+    val optId =
+      rc.exportQueryStageForOptimization(plan, spark, observedLogicalQS.toSet)
 
     plan.setTagValue(TEMP_OPTIMIZED_STAGE_ORDER_TAG, optId)
     canon2IdMap += (plan.canonicalized -> optId)

@@ -70,12 +70,12 @@ class UdaoCollector(verbose: Boolean = true) {
     }
   }
 
-  def exposeQueryStageForOptimization(
+  def exportQueryStageForOptimization(
       plan: SparkPlan,
       spark: SparkSession,
       observedLogicalQS: Set[LogicalPlan]
   ): Int = {
-    qsCollector.exposeQueryStageForOptimization(
+    qsCollector.exportQueryStageForOptimization(
       plan,
       spark,
       observedLogicalQS,

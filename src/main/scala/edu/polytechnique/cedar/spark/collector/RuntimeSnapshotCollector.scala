@@ -2,7 +2,12 @@ package edu.polytechnique.cedar.spark.collector
 
 import edu.polytechnique.cedar.spark.sql.component.RunningSnapshot
 import org.apache.spark.executor.TaskMetrics
-import org.apache.spark.scheduler.{SparkListenerStageSubmitted, SparkListenerTaskEnd, SparkListenerTaskStart, TaskInfo}
+import org.apache.spark.scheduler.{
+  SparkListenerStageSubmitted,
+  SparkListenerTaskEnd,
+  SparkListenerTaskStart,
+  TaskInfo
+}
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable

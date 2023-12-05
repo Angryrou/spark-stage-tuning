@@ -23,7 +23,7 @@ class RuntimeQueryStageCollector(verbose: Boolean = false) {
 
   def getQsOptId: Int = qsOptId.get()
 
-  def exposeQueryStageForOptimization(
+  def exportQueryStageForOptimization(
       plan: SparkPlan,
       spark: SparkSession,
       observedLogicalQS: Set[LogicalPlan],
@@ -132,8 +132,8 @@ class RuntimeQueryStageCollector(verbose: Boolean = false) {
   }
 
   def getQueryStageMap(
-                        stageGroupMap: TrieMap[Int, SGUnit],
-                        stageGroupResultsMap: TrieMap[Int, SGResults]
+      stageGroupMap: TrieMap[Int, SGUnit],
+      stageGroupResultsMap: TrieMap[Int, SGResults]
   ): Map[Int, QSUnit] = {
     assert(stageGroupMap.size == qsIndexMap.size)
     val qsExecutionQueue = getQueryStageExecutionQueue

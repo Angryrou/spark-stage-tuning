@@ -6,9 +6,9 @@ import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.rules.Rule
 
 case class ExposeRuntimeLogicalPlan(
-                                     spark: SparkSession,
-                                     rc: UdaoCollector,
-                                     debug: Boolean
+    spark: SparkSession,
+    rc: UdaoCollector,
+    debug: Boolean
 ) extends Rule[LogicalPlan] {
 
   override def apply(plan: LogicalPlan): LogicalPlan = {

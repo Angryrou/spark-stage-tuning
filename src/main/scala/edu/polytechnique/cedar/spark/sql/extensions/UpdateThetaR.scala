@@ -6,10 +6,10 @@ import org.apache.spark.sql.catalyst.rules.Rule
 import edu.polytechnique.cedar.spark.sql.component.F
 
 case class UpdateThetaR(
-                         spark: SparkSession,
-                         rc: UdaoCollector,
-                         updateLqpId: Int,
-                         debug: Boolean
+    spark: SparkSession,
+    rc: UdaoCollector,
+    updateLqpId: Int,
+    debug: Boolean
 ) extends Rule[LogicalPlan] {
 
   private val target = Map(
