@@ -13,7 +13,7 @@ case class IOBytesUnit(
 
   val json: JsonAST.JObject =
     ("Total" -> (inputRead + inputWritten + shuffleRead + shuffleWritten)) ~
-      ("Detail" -> (
+      ("Details" -> (
         ("IR" -> inputRead) ~
           ("IW" -> inputWritten) ~
           ("SR" -> shuffleRead) ~
