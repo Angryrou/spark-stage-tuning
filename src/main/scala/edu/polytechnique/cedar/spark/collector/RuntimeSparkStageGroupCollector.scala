@@ -1,8 +1,9 @@
 package edu.polytechnique.cedar.spark.collector
 
 import edu.polytechnique.cedar.spark.sql.component.{
-  SGResults,
+  F,
   IOBytesUnit,
+  SGResults,
   SGUnit
 }
 import org.apache.spark.scheduler.{
@@ -20,13 +21,15 @@ class RuntimeSparkStageGroupCollector(verbose: Boolean = true) {
   private val stageGroupMap: TrieMap[Int, SGUnit] = new TrieMap()
   private val stageGroupSign2Id = new TrieMap[String, Int]()
 
-  val stageTotalTasksDurationDict: TrieMap[Int, Long] = new TrieMap()
-  val stageStartEndTimeDict: TrieMap[Int, (Long, Long)] = new TrieMap()
-  val stageIOBytesDict: TrieMap[Int, IOBytesUnit] = new TrieMap()
+  private val stageTotalTasksDurationDict: TrieMap[Int, Long] = new TrieMap()
+  private val stageStartEndTimeDict: TrieMap[Int, (Long, Long)] = new TrieMap()
+  private val stageIOBytesDict: TrieMap[Int, IOBytesUnit] = new TrieMap()
 
   private val listLeafStageIds: mutable.Set[Int] = mutable.Set[Int]()
 
   def getStageGroupMap: TrieMap[Int, SGUnit] = stageGroupMap
+
+  def getStageIOBytesDict: TrieMap[Int, IOBytesUnit] = stageIOBytesDict
 
   private def addStage(stageSubmitted: SparkListenerStageSubmitted): Unit = {
     val rddInfos = stageSubmitted.stageInfo.rddInfos
@@ -94,6 +97,8 @@ class RuntimeSparkStageGroupCollector(verbose: Boolean = true) {
     }
   }
 
+  def getFinishedStageIds: Set[Int] = stageStartEndTimeDict.keySet.toSet
+
   def onStageSubmitted(stageSubmitted: SparkListenerStageSubmitted): Unit = {
     val stageId = stageSubmitted.stageInfo.stageId
     if (!listLeafStageIds.contains(stageId))
@@ -115,15 +120,10 @@ class RuntimeSparkStageGroupCollector(verbose: Boolean = true) {
   }
 
   def aggregateAll(): IOBytesUnit = {
-    stageGroupMap.values.flatMap(_.stageIds).map(stageIOBytesDict(_)).reduce {
-      (x, y) =>
-        IOBytesUnit(
-          inputRead = x.inputRead + y.inputRead,
-          inputWritten = x.inputWritten + y.inputWritten,
-          shuffleRead = x.shuffleRead + y.shuffleRead,
-          shuffleWritten = x.shuffleWritten + y.shuffleWritten
-        )
-    }
+    F.aggregateIOBytes(
+      stageIds = stageGroupMap.values.flatMap(_.stageIds).toSeq,
+      stageIOBytesDict = stageIOBytesDict
+    )
   }
 
   def aggregateResults: TrieMap[Int, SGResults] = {
@@ -135,23 +135,12 @@ class RuntimeSparkStageGroupCollector(verbose: Boolean = true) {
         }
       val totalTasksDurationInMs =
         stageIds.map(stageTotalTasksDurationDict(_)).sum
-      val ioBytesAggregated = stageIds
-        .map(stageIOBytesDict(_))
-        .reduce { (x, y) =>
-          IOBytesUnit(
-            inputRead = x.inputRead + y.inputRead,
-            inputWritten = x.inputWritten + y.inputWritten,
-            shuffleRead = x.shuffleRead + y.shuffleRead,
-            shuffleWritten = x.shuffleWritten + y.shuffleWritten
-          )
-        }
-
       sgId -> SGResults(
         id = sgId,
         durationInMs = endTime - startTime,
         totalTasksDurationInMs = totalTasksDurationInMs,
         relevantStages = sgUnit.stageIds,
-        ioBytes = ioBytesAggregated
+        ioBytes = F.aggregateIOBytes(stageIds, stageIOBytesDict)
       )
     }
   }

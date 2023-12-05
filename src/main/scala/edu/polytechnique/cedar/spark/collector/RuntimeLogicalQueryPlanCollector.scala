@@ -1,7 +1,12 @@
 package edu.polytechnique.cedar.spark.collector
 
 import edu.polytechnique.cedar.spark.sql.component.F.KnobKV
-import edu.polytechnique.cedar.spark.sql.component.{LQPUnit, RunningSnapshot}
+import edu.polytechnique.cedar.spark.sql.component.{
+  F,
+  IOBytesUnit,
+  LQPUnit,
+  RunningSnapshot
+}
 import org.json4s.JsonAST
 import org.json4s.JsonDSL._
 
@@ -14,35 +19,45 @@ class RuntimeLogicalQueryPlanCollector {
   private val startTimeInMsMap = new TrieMap[Int, Long]()
   private val snapshotMap = new TrieMap[Int, RunningSnapshot]()
   private val thetaRMap = new TrieMap[Int, Map[String, Array[KnobKV]]]()
-
+  private val finishedStageIdsMap = new TrieMap[Int, Set[Int]]()
   def getLqpId: Int = lqpId.get()
 
-  def addLQP(
+  def exportRuntimeLogicalPlanBeforeOptimization(
       lqpUnit: LQPUnit,
       startTimeInMs: Long,
       snapshot: RunningSnapshot,
-      runtimeKnobsDict: Map[String, Array[KnobKV]]
+      runtimeKnobsDict: Map[String, Array[KnobKV]],
+      finishedStageIds: Set[Int]
   ): Int = {
     val curId = lqpId.getAndIncrement()
     lqpUnitMap += (curId -> lqpUnit)
     startTimeInMsMap += (curId -> startTimeInMs)
     snapshotMap += (curId -> snapshot)
     thetaRMap += (curId -> runtimeKnobsDict)
+    finishedStageIdsMap += (curId -> finishedStageIds)
     curId
   }
 
-  def exportMap(sqlEndTimeInMs: Long): Map[String, JsonAST.JObject] =
-    lqpUnitMap
-      .map(x =>
-        (
-          x._1.toString,
-          x._2.json ~
-            ("RunningQueryStageSnapshot" -> snapshotMap(x._1).toJson) ~
-            ("StartTimeInMs" -> startTimeInMsMap(x._1)) ~
+  def exportMap(
+      sqlEndTimeInMs: Long,
+      stageIOBytesDict: TrieMap[Int, IOBytesUnit]
+  ): Map[String, JsonAST.JObject] =
+    lqpUnitMap.map { x =>
+      val remainingStageIds =
+        stageIOBytesDict.keySet -- finishedStageIdsMap(x._1)
+      (
+        x._1.toString,
+        x._2.json ~
+          ("RunningQueryStageSnapshot" -> snapshotMap(x._1).toJson) ~
+          ("StartTimeInMs" -> startTimeInMsMap(x._1)) ~
+          ("RuntimeConfiguration" -> thetaRMap(x._1)
+            .map(y => (y._1, y._2.toSeq))) ~
+          ("Objectives" -> (
             ("DurationInMs" -> (sqlEndTimeInMs - startTimeInMsMap(x._1))) ~
-            ("RuntimeConfiguration" -> thetaRMap(x._1)
-              .map(y => (y._1, y._2.toSeq)))
-        )
+              ("IOBytes" -> F
+                .aggregateIOBytes(remainingStageIds.toSeq, stageIOBytesDict)
+                .json)
+          ))
       )
-      .toMap
+    }.toMap
 }

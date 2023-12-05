@@ -25,6 +25,7 @@ import org.apache.spark.sql.execution.{
 
 import scala.collection.mutable
 import java.util.concurrent.atomic.AtomicInteger
+import scala.collection.concurrent.TrieMap
 
 object F {
 
@@ -408,5 +409,19 @@ object F {
     .map(_.asInstanceOf[FileSourceScanExec].tableIdentifier.get.table)
     .sorted
     .mkString(",")
+
+  def aggregateIOBytes(
+      stageIds: Seq[Int],
+      stageIOBytesDict: TrieMap[Int, IOBytesUnit]
+  ): IOBytesUnit = {
+    stageIds.map(stageIOBytesDict(_)).reduce { (x, y) =>
+      IOBytesUnit(
+        inputRead = x.inputRead + y.inputRead,
+        inputWritten = x.inputWritten + y.inputWritten,
+        shuffleRead = x.shuffleRead + y.shuffleRead,
+        shuffleWritten = x.shuffleWritten + y.shuffleWritten
+      )
+    }
+  }
 
 }

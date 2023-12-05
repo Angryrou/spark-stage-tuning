@@ -1,4 +1,6 @@
 package edu.polytechnique.cedar.spark.collector
+import edu.polytechnique.cedar.spark.sql.component.F.KnobKV
+import edu.polytechnique.cedar.spark.sql.component.{LQPUnit, RunningSnapshot}
 import org.apache.spark.scheduler.{
   SparkListenerJobStart,
   SparkListenerStageCompleted,
@@ -70,6 +72,21 @@ class UdaoCollector(verbose: Boolean = true) {
     }
   }
 
+  def exportRuntimeLogicalPlanBeforeOptimization(
+      lqpUnit: LQPUnit,
+      startTimeInMs: Long,
+      snapshot: RunningSnapshot,
+      runtimeKnobsDict: Map[String, Array[KnobKV]]
+  ): Int = {
+    lqpCollector.exportRuntimeLogicalPlanBeforeOptimization(
+      lqpUnit,
+      startTimeInMs,
+      snapshot,
+      runtimeKnobsDict,
+      finishedStageIds = sgCollector.getFinishedStageIds
+    )
+  }
+
   def exportRuntimeQueryStageBeforeOptimization(
       plan: SparkPlan,
       spark: SparkSession,
@@ -92,7 +109,8 @@ class UdaoCollector(verbose: Boolean = true) {
       "Assertion failed: cannot be exposed before sqlStartTimeInMs & sqlEndTimeInMs are defined."
     )
 
-    val lqpMap = lqpCollector.exportMap(sqlEndTimeInMs)
+    val lqpMap =
+      lqpCollector.exportMap(sqlEndTimeInMs, sgCollector.getStageIOBytesDict)
     val sgMap = sgCollector.getStageGroupMap
     val sgResultsMap = sgCollector.aggregateResults
     val qsMap = qsCollector.getQueryStageMap(sgMap, sgResultsMap)

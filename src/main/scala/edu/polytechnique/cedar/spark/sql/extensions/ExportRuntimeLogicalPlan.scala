@@ -19,7 +19,7 @@ case class ExportRuntimeLogicalPlan(
       "Assertion failed: we should not have executionId.isEmpty or executionId > 2"
     )
     if (executionId.get == 1) {
-      val lqpId = rc.lqpCollector.addLQP(
+      val lqpId = rc.exportRuntimeLogicalPlanBeforeOptimization(
         lqpUnit = F.exportLQP(plan),
         startTimeInMs = F.getTimeInMs,
         snapshot = rc.snapshotCollector.snapshot(),
