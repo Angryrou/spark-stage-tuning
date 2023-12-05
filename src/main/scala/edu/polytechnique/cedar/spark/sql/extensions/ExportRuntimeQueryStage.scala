@@ -31,7 +31,7 @@ case class ExportRuntimeQueryStage(
       "Assertion failed: we should not have executionId.isEmpty or executionId > 2"
     )
 
-    // only expose the query stage with executionId = 1
+    // only export the query stage with executionId = 1
     if (executionId.get != 1)
       return plan
 
@@ -68,7 +68,11 @@ case class ExportRuntimeQueryStage(
 
     // export the query stage
     val optId =
-      rc.exportRuntimeQueryStageBeforeOptimization(plan, spark, observedLogicalQS.toSet)
+      rc.exportRuntimeQueryStageBeforeOptimization(
+        plan,
+        spark,
+        observedLogicalQS.toSet
+      )
 
     plan.setTagValue(TEMP_OPTIMIZED_STAGE_ORDER_TAG, optId)
     canon2IdMap += (plan.canonicalized -> optId)

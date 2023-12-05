@@ -30,7 +30,7 @@ class RuntimeQueryStageCollector(verbose: Boolean = false) {
       snapshot: RunningSnapshot
   ): Int = {
     val curId = qsOptId.getAndIncrement()
-    qsOptIdMap += (curId -> F.exposeQSMetrics(plan, observedLogicalQS))
+    qsOptIdMap += (curId -> F.exportQSMetrics(plan, observedLogicalQS))
     snapshotMap += (curId -> snapshot)
     thetaRMap += (curId -> F.getRuntimeConfiguration(spark))
     tableMap += (curId -> F.getLeafTables(plan))

@@ -238,7 +238,7 @@ object F {
     }
   }
 
-  def exposeLQP(
+  def exportLQP(
       plan: LogicalPlan,
       existedLQPs: Set[LogicalPlan] = Set(),
       forQueryStage: Boolean = false
@@ -277,13 +277,13 @@ object F {
     )
   }
 
-  def exposeQSMetrics(
+  def exportQSMetrics(
       plan: SparkPlan,
       observedLQPs: Set[LogicalPlan]
   ): QSMetrics = {
     assert(plan.logicalLink.isDefined)
     val lqpQsUnit =
-      exposeLQP(plan.logicalLink.get, observedLQPs, forQueryStage = true)
+      exportLQP(plan.logicalLink.get, observedLQPs, forQueryStage = true)
     val operators = mutable.TreeMap[Int, PhysicalOperator]()
     val links = mutable.ArrayBuffer[Link]()
     val signToOpId = mutable.TreeMap[Int, Int]()

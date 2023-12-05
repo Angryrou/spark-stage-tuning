@@ -31,7 +31,7 @@ class RuntimeLogicalQueryPlanCollector {
     curId
   }
 
-  def exposeMap(sqlEndTimeInMs: Long): Map[String, JsonAST.JObject] =
+  def exportMap(sqlEndTimeInMs: Long): Map[String, JsonAST.JObject] =
     lqpUnitMap
       .map(x =>
         (

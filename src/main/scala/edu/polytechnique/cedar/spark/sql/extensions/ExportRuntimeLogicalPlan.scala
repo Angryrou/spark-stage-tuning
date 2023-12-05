@@ -20,7 +20,7 @@ case class ExportRuntimeLogicalPlan(
     )
     if (executionId.get == 1) {
       val lqpId = rc.lqpCollector.addLQP(
-        lqpUnit = F.exposeLQP(plan),
+        lqpUnit = F.exportLQP(plan),
         startTimeInMs = F.getTimeInMs,
         snapshot = rc.snapshotCollector.snapshot(),
         runtimeKnobsDict = F.getRuntimeConfiguration(spark)

@@ -24,7 +24,7 @@ class CompileTimeCollector {
   def onCompile(spark: SparkSession, queryContent: String): Unit = {
     thetaMap = Some(F.getAllConfiguration(spark))
     val plan = spark.sql(queryContent).queryExecution.optimizedPlan
-    lqpUnit = Some(F.exposeLQP(plan))
+    lqpUnit = Some(F.exportLQP(plan))
   }
 
   def exposeJson: JsonAST.JObject = {

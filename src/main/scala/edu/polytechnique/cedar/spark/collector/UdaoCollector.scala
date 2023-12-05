@@ -92,7 +92,7 @@ class UdaoCollector(verbose: Boolean = true) {
       "Assertion failed: cannot be exposed before sqlStartTimeInMs & sqlEndTimeInMs are defined."
     )
 
-    val lqpMap = lqpCollector.exposeMap(sqlEndTimeInMs)
+    val lqpMap = lqpCollector.exportMap(sqlEndTimeInMs)
     val sgMap = sgCollector.getStageGroupMap
     val sgResultsMap = sgCollector.aggregateResults
     val qsMap = qsCollector.getQueryStageMap(sgMap, sgResultsMap)
