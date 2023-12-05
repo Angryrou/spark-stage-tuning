@@ -101,10 +101,14 @@ class RuntimeCollector(verbose: Boolean = true) {
     val qsMap = qsCollector.getQueryStageMap(sgMap, sgResultsMap)
 
     qsMap
-      .map(x => (x._1, x._2.relevantStages, x._2.table))
+      .map(x => (x._1, x._2.qsOptId, x._2.relevantStages, x._2.table))
       .toSeq
       .sortBy(_._1)
-      .foreach(println)
+      .foreach(x =>
+        println(
+          s"QueryStageId: ${x._1} \t OptimizationOrder: ${x._2} \t RelevantStages: ${x._3} \t table: ${x._4}"
+        )
+      )
 
     val json: JsonAST.JObject =
       ("RuntimeLQPs" -> lqpMap) ~
