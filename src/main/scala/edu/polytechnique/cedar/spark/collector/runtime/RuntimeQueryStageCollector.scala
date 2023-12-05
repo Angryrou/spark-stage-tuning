@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 
-class RuntimeQueryStageCollector {
+class RuntimeQueryStageCollector(verbose: Boolean = false) {
   private val qsOptId = new AtomicInteger(0)
   private val qsOptIdMap: TrieMap[Int, QSUnitMetrics] = new TrieMap()
   private val snapshotMap = new TrieMap[Int, RunningSnapshot]()
@@ -59,11 +59,12 @@ class RuntimeQueryStageCollector {
         )
         assert(!qsIndexMap.contains((e.waveId, e.idInWave)))
         qsIndexMap.update((e.waveId, e.idInWave), qsIndex)
-        println(s"addQSIndex: $qsIndex")
+        if (verbose) println(s"addQSIndex: $qsIndex")
       case None =>
-        println(
-          s"skip: (wave:${e.waveId},${e.idInWave}) in plan.${e.planId}->QS.${e.qsId}; mostly due to reuse Exchange."
-        )
+        if (verbose)
+          println(
+            s"skip: (wave:${e.waveId},${e.idInWave}) in plan.${e.planId}->QS.${e.qsId}; mostly due to reuse Exchange."
+          )
     }
   }
 
@@ -126,9 +127,9 @@ class RuntimeQueryStageCollector {
       .mapValues(_.map(_._1).toSeq.sorted)
     val qsId2sgIdMapping = mutable.Map[Int, Int]()
     stageGroupTableMap.foreach { case (table, sgIdList) =>
-      qsExecutionQueue
-        .filter(x => tableMap(x.optimizedStageOrder) == table)
-        .map(_.optimizedStageOrder)
+      qsExecutionQueue.zipWithIndex
+        .filter(x => tableMap(x._1.optimizedStageOrder) == table)
+        .map(_._2)
         .zip(sgIdList)
         .foreach { case (qsId, sgId) =>
           qsId2sgIdMapping += (qsId -> sgId)
@@ -147,6 +148,7 @@ class RuntimeQueryStageCollector {
     qsMap = Some(qsExecutionQueue.zipWithIndex.map { case (qsIndex, index) =>
       val tmpOptId = qsIndex.optimizedStageOrder
       val sgId = qsId2sgIdMapping(index)
+      assert(stageGroupMap(sgId).table == tableMap(tmpOptId))
       index -> QueryStageUnit(
         id = index,
         qsOptId = tmpOptId,
@@ -156,7 +158,8 @@ class RuntimeQueryStageCollector {
           stageGroupResultsMap(sgId).totalTasksDurationInMs,
         snapshot = snapshotMap(tmpOptId),
         thetaR = thetaRMap(tmpOptId),
-        relevantStages = stageGroupResultsMap(sgId).relevantStages
+        relevantStages = stageGroupResultsMap(sgId).relevantStages,
+        table = tableMap(tmpOptId)
       )
     }.toMap)
     qsMap.get

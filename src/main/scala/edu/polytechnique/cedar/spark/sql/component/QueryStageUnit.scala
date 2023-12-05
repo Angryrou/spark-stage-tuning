@@ -12,7 +12,8 @@ case class QueryStageUnit(
     totalTasksDurationInMs: Long,
     snapshot: RunningSnapshot,
     thetaR: Map[String, Array[KnobKV]],
-    relevantStages: Seq[Int]
+    relevantStages: Seq[Int],
+    table: String
 ) extends MyUnit {
 
   val json: JsonAST.JObject = qsUnitMetrics.json ~

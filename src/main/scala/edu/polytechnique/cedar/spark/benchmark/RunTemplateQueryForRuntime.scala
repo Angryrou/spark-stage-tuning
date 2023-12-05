@@ -55,6 +55,9 @@ object RunTemplateQueryForRuntime {
         opt[String]('d', "localDebug")
           .action((x, c) => c.copy(localDebug = x.toBoolean))
           .text("Local debug")
+        opt[String]('v', "verbose")
+          .action((x, c) => c.copy(verbose = x.toBoolean))
+          .text("Verbose")
         help("help")
           .text("prints this usage text")
       }
@@ -70,7 +73,7 @@ object RunTemplateQueryForRuntime {
   def run(config: RunTemplateQueryConfig): Unit = {
     assert(config.benchmarkName == "TPCH" || config.benchmarkName == "TPCDS")
     val initialCollector = new CompileTimeCollector()
-    val runtimeCollector = new RuntimeCollector()
+    val runtimeCollector = new RuntimeCollector(config.verbose)
     val spark = if (config.localDebug) {
       SparkSession
         .builder()

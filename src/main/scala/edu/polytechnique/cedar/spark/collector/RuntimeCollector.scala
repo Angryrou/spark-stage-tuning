@@ -30,7 +30,7 @@ class RuntimeCollector(verbose: Boolean = true) {
 
   val lqpCollector = new RuntimeLogicalQueryPlanCollector()
   val sgCollector = new RuntimeSparkStageGroupCollector(verbose)
-  val qsCollector = new RuntimeQueryStageCollector()
+  val qsCollector = new RuntimeQueryStageCollector(verbose)
   val snapshotCollector = new RuntimeSnapshotCollector()
   private var sqlStartTimeInMs: Long = -1
   private var sqlEndTimeInMs: Long = -1
@@ -102,7 +102,7 @@ class RuntimeCollector(verbose: Boolean = true) {
 
     if (verbose) {
       qsMap
-        .map(x => (x._1, x._2.relevantStages))
+        .map(x => (x._1, x._2.relevantStages, x._2.table))
         .toSeq
         .sortBy(_._1)
         .foreach(println)
