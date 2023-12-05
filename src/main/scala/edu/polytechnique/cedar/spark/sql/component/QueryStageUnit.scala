@@ -1,0 +1,26 @@
+package edu.polytechnique.cedar.spark.sql.component
+
+import edu.polytechnique.cedar.spark.sql.component.F.KnobKV
+import org.json4s.{JValue, JsonAST}
+import org.json4s.JsonDSL._
+import org.json4s.jackson.JsonMethods.render
+case class QueryStageUnit(
+    id: Int,
+    qsOptId: Int,
+    qsUnitMetrics: QSUnitMetrics,
+    durationInMs: Long,
+    totalTasksDurationInMs: Long,
+    snapshot: RunningSnapshot,
+    thetaR: Map[String, Array[KnobKV]],
+    relevantStages: Seq[Int]
+) extends MyUnit {
+
+  val json: JsonAST.JObject = qsUnitMetrics.json ~
+    ("RunningQueryStageSnapshot" -> snapshot.toJson) ~
+    ("QueryStageOptimizationId" -> qsOptId) ~
+    ("RuntimeConfiguration" -> thetaR.map(x => (x._1, x._2.toList))) ~
+    ("DurationInMs" -> durationInMs) ~
+    ("TotalTasksDurationInMs" -> totalTasksDurationInMs) ~
+    ("RelevantQueryStageIds" -> relevantStages.toList)
+  override def toJson: JValue = render(json)
+}
