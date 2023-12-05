@@ -100,13 +100,11 @@ class RuntimeCollector(verbose: Boolean = true) {
     val sgResultsMap = sgCollector.aggregateResults
     val qsMap = qsCollector.getQueryStageMap(sgMap, sgResultsMap)
 
-    if (verbose) {
-      qsMap
-        .map(x => (x._1, x._2.relevantStages, x._2.table))
-        .toSeq
-        .sortBy(_._1)
-        .foreach(println)
-    }
+    qsMap
+      .map(x => (x._1, x._2.relevantStages, x._2.table))
+      .toSeq
+      .sortBy(_._1)
+      .foreach(println)
 
     val json: JsonAST.JObject =
       ("RuntimeLQPs" -> lqpMap) ~
