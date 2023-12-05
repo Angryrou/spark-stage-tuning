@@ -4,5 +4,6 @@ case class GroupStageResults(
     id: Int,
     durationInMs: Long,
     totalTasksDurationInMs: Long,
-    relevantStages: Seq[Int]
+    relevantStages: Seq[Int],
+    ioBytes: IOBytesUnit
 )

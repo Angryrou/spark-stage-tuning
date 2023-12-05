@@ -1,6 +1,7 @@
 package edu.polytechnique.cedar.spark.collector.runtime
 import edu.polytechnique.cedar.spark.sql.component.{
   GroupStageResults,
+  IOBytesUnit,
   StageGroupUnit
 }
 import org.apache.spark.scheduler.{
@@ -20,6 +21,7 @@ class RuntimeSparkStageGroupCollector(verbose: Boolean = true) {
 
   val stageTotalTasksDurationDict: TrieMap[Int, Long] = new TrieMap()
   val stageStartEndTimeDict: TrieMap[Int, (Long, Long)] = new TrieMap()
+  val stageIOBytesDict: TrieMap[Int, IOBytesUnit] = new TrieMap()
 
   private val listLeafStageIds: mutable.Set[Int] = mutable.Set[Int]()
 
@@ -75,7 +77,19 @@ class RuntimeSparkStageGroupCollector(verbose: Boolean = true) {
           stageCompleted.stageInfo.completionTime.get
         )
       )
-      //todo: add IO metrics for each stage
+      stageIOBytesDict.update(
+        stageId,
+        IOBytesUnit(
+          inputRead =
+            stageCompleted.stageInfo.taskMetrics.inputMetrics.bytesRead,
+          inputWritten =
+            stageCompleted.stageInfo.taskMetrics.outputMetrics.bytesWritten,
+          shuffleRead =
+            stageCompleted.stageInfo.taskMetrics.shuffleReadMetrics.totalBytesRead,
+          shuffleWritten =
+            stageCompleted.stageInfo.taskMetrics.shuffleWriteMetrics.bytesWritten
+        )
+      )
     }
   }
 
@@ -99,7 +113,7 @@ class RuntimeSparkStageGroupCollector(verbose: Boolean = true) {
     }
   }
 
-  def aggregateResults = {
+  def aggregateResults: TrieMap[Int, GroupStageResults] = {
     stageGroupMap.map { case (sgId, sgUnit) =>
       val stageIds = sgUnit.stageIds
       val (startTime, endTime) =
@@ -108,11 +122,23 @@ class RuntimeSparkStageGroupCollector(verbose: Boolean = true) {
         }
       val totalTasksDurationInMs =
         stageIds.map(stageTotalTasksDurationDict(_)).sum
+      val ioBytesAggregated = stageIds
+        .map(stageIOBytesDict(_))
+        .reduce { (x, y) =>
+          IOBytesUnit(
+            inputRead = x.inputRead + y.inputRead,
+            inputWritten = x.inputWritten + y.inputWritten,
+            shuffleRead = x.shuffleRead + y.shuffleRead,
+            shuffleWritten = x.shuffleWritten + y.shuffleWritten
+          )
+        }
+
       sgId -> GroupStageResults(
         id = sgId,
         durationInMs = endTime - startTime,
         totalTasksDurationInMs = totalTasksDurationInMs,
-        relevantStages = sgUnit.stageIds
+        relevantStages = sgUnit.stageIds,
+        ioBytes = ioBytesAggregated
       )
     }
   }

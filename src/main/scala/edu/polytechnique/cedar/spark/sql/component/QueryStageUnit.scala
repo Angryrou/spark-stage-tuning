@@ -10,6 +10,7 @@ case class QueryStageUnit(
     qsUnitMetrics: QSUnitMetrics,
     durationInMs: Long,
     totalTasksDurationInMs: Long,
+    ioBytes: IOBytesUnit,
     snapshot: RunningSnapshot,
     thetaR: Map[String, Array[KnobKV]],
     relevantStages: Seq[Int],
@@ -20,8 +21,9 @@ case class QueryStageUnit(
     ("RunningQueryStageSnapshot" -> snapshot.toJson) ~
     ("QueryStageOptimizationId" -> qsOptId) ~
     ("RuntimeConfiguration" -> thetaR.map(x => (x._1, x._2.toList))) ~
-    ("DurationInMs" -> durationInMs) ~
-    ("TotalTasksDurationInMs" -> totalTasksDurationInMs) ~
-    ("RelevantQueryStageIds" -> relevantStages.toList)
+    ("RelevantQueryStageIds" -> relevantStages.toList) ~
+    ("Objectives" -> ("DurationInMs" -> durationInMs) ~
+      ("TotalTasksDurationInMs" -> totalTasksDurationInMs) ~
+      ("IOBytes" -> ioBytes.json))
   override def toJson: JValue = render(json)
 }

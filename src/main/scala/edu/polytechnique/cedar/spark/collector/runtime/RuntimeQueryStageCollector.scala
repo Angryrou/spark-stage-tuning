@@ -153,6 +153,7 @@ class RuntimeQueryStageCollector(verbose: Boolean = false) {
         id = index,
         qsOptId = tmpOptId,
         qsUnitMetrics = qsOptIdMap(tmpOptId),
+        ioBytes = stageGroupResultsMap(sgId).ioBytes,
         durationInMs = stageGroupResultsMap(sgId).durationInMs,
         totalTasksDurationInMs =
           stageGroupResultsMap(sgId).totalTasksDurationInMs,
