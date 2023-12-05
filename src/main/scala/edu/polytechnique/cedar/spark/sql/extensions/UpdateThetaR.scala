@@ -1,5 +1,5 @@
 package edu.polytechnique.cedar.spark.sql.extensions
-import edu.polytechnique.cedar.spark.sql.component.collectors.RuntimeCollector
+import edu.polytechnique.cedar.spark.collector.RuntimeCollector
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.rules.Rule
@@ -24,7 +24,7 @@ case class UpdateThetaR(
       "Assertion failed: we should not have executionId.isEmpty or executionId > 2"
     )
     if (executionId.get == 1) {
-      val lqpId = rc.getLqpId
+      val lqpId = rc.lqpCollector.getLqpId
       if (lqpId == updateLqpId) { // happening before counting the LQP
         for ((k, v) <- target) {
           spark.conf.set(k, v)

@@ -1,15 +1,15 @@
 package edu.polytechnique.cedar.spark.benchmark
 
 import edu.polytechnique.cedar.spark.benchmark.config.RunTemplateQueryConfigTaskB
+import edu.polytechnique.cedar.spark.collector.{
+  CompileTimeCollector,
+  RuntimeCollector
+}
 import edu.polytechnique.cedar.spark.listeners.{
   UDAOQueryExecutionListener,
   UDAOSparkListener
 }
 import edu.polytechnique.cedar.spark.sql.component.F
-import edu.polytechnique.cedar.spark.sql.component.collectors.{
-  InitialCollector,
-  RuntimeCollector
-}
 import edu.polytechnique.cedar.spark.sql.extensions.{
   ExposeRuntimeLogicalPlan,
   UpdateThetaR
@@ -73,7 +73,7 @@ object RunTemplateQueryForRuntimeTaskB {
 
   def run(config: RunTemplateQueryConfigTaskB): Unit = {
     assert(config.benchmarkName == "TPCH" || config.benchmarkName == "TPCDS")
-    val initialCollector = new InitialCollector()
+    val initialCollector = new CompileTimeCollector()
     val runtimeCollector = new RuntimeCollector()
     val spark = if (config.localDebug) {
       SparkSession
@@ -136,12 +136,9 @@ object RunTemplateQueryForRuntimeTaskB {
     }
 
     initialCollector.markConfiguration(spark)
-    spark.listenerManager.register(
-      UDAOQueryExecutionListener(initialCollector, config.localDebug)
-    )
-    spark.sparkContext.addSparkListener(
-      UDAOSparkListener(runtimeCollector, config.localDebug)
-    )
+    spark.listenerManager.register(UDAOQueryExecutionListener(initialCollector))
+    spark.sparkContext.addSparkListener(UDAOSparkListener(runtimeCollector))
+
     val databaseName =
       if (config.databaseName == null)
         s"${config.benchmarkName.toLowerCase}_${config.scaleFactor}"
@@ -164,9 +161,9 @@ object RunTemplateQueryForRuntimeTaskB {
     println(s"run ${queryLocationHeader}/${tid}/${tid}-${qid}.sql")
     println(queryContent)
 
-    initialCollector.lqpMap += ("collect" -> F.exposeLQP(
+    initialCollector.setLQP(
       spark.sql(queryContent).queryExecution.optimizedPlan
-    ))
+    )
     spark.sql(queryContent).collect()
     spark.close()
 
@@ -184,7 +181,7 @@ object RunTemplateQueryForRuntimeTaskB {
     val writer2 = new PrintWriter(
       s"${config.extractedPath}/${spark.sparkContext.appName}_${spark.sparkContext.applicationId}_runtime.json"
     )
-    val lqpJsonString = runtimeCollector.lqpMapJsonStr
+    val lqpJsonString = runtimeCollector.dump2String
     // println(lqpJsonString)
     writer2.write(lqpJsonString)
     writer2.close()

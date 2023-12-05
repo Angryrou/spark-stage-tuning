@@ -1,15 +1,15 @@
 package edu.polytechnique.cedar.spark.benchmark
 
 import edu.polytechnique.cedar.spark.benchmark.config.RunTemplateQueryConfig
+import edu.polytechnique.cedar.spark.collector.{
+  CompileTimeCollector,
+  RuntimeCollector
+}
 import edu.polytechnique.cedar.spark.listeners.{
   UDAOQueryExecutionListener,
   UDAOSparkListener
 }
 import edu.polytechnique.cedar.spark.sql.component.F
-import edu.polytechnique.cedar.spark.sql.component.collectors.{
-  InitialCollector,
-  RuntimeCollector
-}
 import edu.polytechnique.cedar.spark.sql.extensions.{
   ExposeRuntimeLogicalPlan,
   ExposeRuntimeQueryStage
@@ -69,7 +69,7 @@ object RunTemplateQueryForRuntime {
 
   def run(config: RunTemplateQueryConfig): Unit = {
     assert(config.benchmarkName == "TPCH" || config.benchmarkName == "TPCDS")
-    val initialCollector = new InitialCollector()
+    val initialCollector = new CompileTimeCollector()
     val runtimeCollector = new RuntimeCollector()
     val spark = if (config.localDebug) {
       SparkSession
@@ -85,8 +85,8 @@ object RunTemplateQueryForRuntime {
         .config("spark.memory.fraction", "0.6")
         .config("spark.sql.inMemoryColumnarStorage.batchSize", "10000")
         .config("spark.sql.files.maxPartitionBytes", "128MB")
-        .config("spark.sql.autoBroadcastJoinThreshold", "0MB")
-        .config("spark.sql.adaptive.autoBroadcastJoinThreshold", "0MB")
+        .config("spark.sql.autoBroadcastJoinThreshold", "10MB")
+        .config("spark.sql.adaptive.autoBroadcastJoinThreshold", "10MB")
         .config("spark.sql.shuffle.partitions", "200")
         .config("spark.sql.adaptive.enable", "true")
         .config("spark.sql.parquet.compression.codec", "snappy")
@@ -122,12 +122,9 @@ object RunTemplateQueryForRuntime {
     }
 
     initialCollector.markConfiguration(spark)
-    spark.listenerManager.register(
-      UDAOQueryExecutionListener(initialCollector, config.localDebug)
-    )
-    spark.sparkContext.addSparkListener(
-      UDAOSparkListener(runtimeCollector, config.localDebug)
-    )
+    spark.listenerManager.register(UDAOQueryExecutionListener(initialCollector))
+    spark.sparkContext.addSparkListener(UDAOSparkListener(runtimeCollector))
+
     val databaseName =
       if (config.databaseName == null)
         s"${config.benchmarkName.toLowerCase}_${config.scaleFactor}"
@@ -151,9 +148,9 @@ object RunTemplateQueryForRuntime {
 //    if (config.localDebug)
 //      println(queryContent)
 
-    initialCollector.lqpMap += ("collect" -> F.exposeLQP(
+    initialCollector.setLQP(
       spark.sql(queryContent).queryExecution.optimizedPlan
-    ))
+    )
     spark.sql(queryContent).collect()
     spark.close()
 
@@ -171,7 +168,7 @@ object RunTemplateQueryForRuntime {
     val writer2 = new PrintWriter(
       s"${config.extractedPath}/${spark.sparkContext.appName}_${spark.sparkContext.applicationId}_runtime.json"
     )
-    val lqpJsonString = runtimeCollector.lqpMapJsonStr
+    val lqpJsonString = runtimeCollector.dump2String
     // println(lqpJsonString)
     writer2.write(lqpJsonString)
     writer2.close()

@@ -1,9 +1,9 @@
 package edu.polytechnique.cedar.spark.benchmark
 
 import edu.polytechnique.cedar.spark.benchmark.config.RunTemplateQueryConfig
+import edu.polytechnique.cedar.spark.collector.CompileTimeCollector
 import edu.polytechnique.cedar.spark.listeners.UDAOQueryExecutionListener
 import edu.polytechnique.cedar.spark.sql.component.F
-import edu.polytechnique.cedar.spark.sql.component.collectors.InitialCollector
 import org.apache.spark.sql.SparkSession
 
 import java.io.{File, PrintWriter}
@@ -58,7 +58,7 @@ object RunTemplateQueryForInitialLQP {
 
   def run(config: RunTemplateQueryConfig): Unit = {
     assert(config.benchmarkName == "TPCH" || config.benchmarkName == "TPCDS")
-    val initialCollector = new InitialCollector()
+    val initialCollector = new CompileTimeCollector()
     val spark = if (config.localDebug) {
       SparkSession
         .builder()
@@ -94,7 +94,7 @@ object RunTemplateQueryForInitialLQP {
 
     initialCollector.markConfiguration(spark)
     spark.listenerManager.register(
-      UDAOQueryExecutionListener(initialCollector, config.localDebug)
+      UDAOQueryExecutionListener(initialCollector)
     )
     val databaseName =
       if (config.databaseName == null)
@@ -118,9 +118,9 @@ object RunTemplateQueryForInitialLQP {
     println(s"run ${queryLocationHeader}/${tid}/${tid}-${qid}.sql")
     println(queryContent)
 
-    initialCollector.lqpMap += ("collect" -> F.exposeLQP(
+    initialCollector.setLQP(
       spark.sql(queryContent).queryExecution.optimizedPlan
-    ))
+    )
     spark.sql(queryContent).collect()
 
     spark.close()
