@@ -1,6 +1,7 @@
 package edu.polytechnique.cedar.spark.sql.component
 
-case class GroupStageResults(
+// stage group results
+case class SGResults(
     id: Int,
     durationInMs: Long,
     totalTasksDurationInMs: Long,

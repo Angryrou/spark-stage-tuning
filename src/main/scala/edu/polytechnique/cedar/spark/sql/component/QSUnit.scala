@@ -4,10 +4,10 @@ import edu.polytechnique.cedar.spark.sql.component.F.KnobKV
 import org.json4s.{JValue, JsonAST}
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.render
-case class QueryStageUnit(
+case class QSUnit(
     id: Int,
     qsOptId: Int,
-    qsUnitMetrics: QSUnitMetrics,
+    qsUnitMetrics: QSMetrics,
     durationInMs: Long,
     totalTasksDurationInMs: Long,
     ioBytes: IOBytesUnit,

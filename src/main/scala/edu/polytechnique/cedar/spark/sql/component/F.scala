@@ -280,7 +280,7 @@ object F {
   def exposeQSMetrics(
       plan: SparkPlan,
       observedLQPs: Set[LogicalPlan]
-  ): QSUnitMetrics = {
+  ): QSMetrics = {
     assert(plan.logicalLink.isDefined)
     val lqpQsUnit =
       exposeLQP(plan.logicalLink.get, observedLQPs, forQueryStage = true)
@@ -304,7 +304,7 @@ object F {
       rawPlan = plan.toString()
     )
 
-    QSUnitMetrics(
+    QSMetrics(
       logicalPlanMetrics = lqpQsUnit.logicalPlanMetrics,
       physicalPlanMetrics = physicalPlanMetrics,
       inputMetaInfo = InputMetaInfo(

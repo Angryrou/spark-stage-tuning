@@ -13,13 +13,13 @@ import scala.collection.mutable
 
 class RuntimeQueryStageCollector(verbose: Boolean = false) {
   private val qsOptId = new AtomicInteger(0)
-  private val qsOptIdMap: TrieMap[Int, QSUnitMetrics] = new TrieMap()
+  private val qsOptIdMap: TrieMap[Int, QSMetrics] = new TrieMap()
   private val snapshotMap = new TrieMap[Int, RunningSnapshot]()
   private val thetaRMap = new TrieMap[Int, Map[String, Array[KnobKV]]]()
   private val tableMap = new TrieMap[Int, String]()
 
   private val qsIndexMap = new TrieMap[(Int, Int), QSIndex]()
-  private var qsMap: Option[Map[Int, QueryStageUnit]] = None
+  private var qsMap: Option[Map[Int, QSUnit]] = None
 
   def getQsOptId: Int = qsOptId.get()
 
@@ -112,7 +112,7 @@ class RuntimeQueryStageCollector(verbose: Boolean = false) {
 
   private def getMappingToSG(
       qsExecutionQueue: mutable.ArrayBuffer[QSIndex],
-      stageGroupMap: TrieMap[Int, StageGroupUnit]
+      stageGroupMap: TrieMap[Int, SGUnit]
   ): Map[Int, Int] = {
     val stageGroupTableMap = stageGroupMap.values
       .map(x => (x.id, x.table))
@@ -132,9 +132,9 @@ class RuntimeQueryStageCollector(verbose: Boolean = false) {
   }
 
   def getQueryStageMap(
-      stageGroupMap: TrieMap[Int, StageGroupUnit],
-      stageGroupResultsMap: TrieMap[Int, GroupStageResults]
-  ): Map[Int, QueryStageUnit] = {
+                        stageGroupMap: TrieMap[Int, SGUnit],
+                        stageGroupResultsMap: TrieMap[Int, SGResults]
+  ): Map[Int, QSUnit] = {
     assert(stageGroupMap.size == qsIndexMap.size)
     val qsExecutionQueue = getQueryStageExecutionQueue
     val qsId2sgIdMapping = getMappingToSG(qsExecutionQueue, stageGroupMap)
@@ -142,7 +142,7 @@ class RuntimeQueryStageCollector(verbose: Boolean = false) {
       val tmpOptId = qsIndex.optimizedStageOrder
       val sgId = qsId2sgIdMapping(index)
       assert(stageGroupMap(sgId).table == tableMap(tmpOptId))
-      index -> QueryStageUnit(
+      index -> QSUnit(
         id = index,
         qsOptId = tmpOptId,
         qsUnitMetrics = qsOptIdMap(tmpOptId),

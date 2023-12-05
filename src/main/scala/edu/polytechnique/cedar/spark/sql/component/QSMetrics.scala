@@ -4,7 +4,7 @@ import org.json4s.{JValue, JsonAST}
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.render
 
-case class QSUnitMetrics(
+case class QSMetrics(
     logicalPlanMetrics: LogicalPlanMetrics,
     physicalPlanMetrics: PhysicalPlanMetrics,
     inputMetaInfo: InputMetaInfo,

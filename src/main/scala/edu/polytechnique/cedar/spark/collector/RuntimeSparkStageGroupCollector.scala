@@ -1,9 +1,9 @@
 package edu.polytechnique.cedar.spark.collector
 
 import edu.polytechnique.cedar.spark.sql.component.{
-  GroupStageResults,
+  SGResults,
   IOBytesUnit,
-  StageGroupUnit
+  SGUnit
 }
 import org.apache.spark.scheduler.{
   SparkListenerJobStart,
@@ -17,7 +17,7 @@ import scala.collection.mutable
 
 class RuntimeSparkStageGroupCollector(verbose: Boolean = true) {
 
-  private val stageGroupMap: TrieMap[Int, StageGroupUnit] = new TrieMap()
+  private val stageGroupMap: TrieMap[Int, SGUnit] = new TrieMap()
   private val stageGroupSign2Id = new TrieMap[String, Int]()
 
   val stageTotalTasksDurationDict: TrieMap[Int, Long] = new TrieMap()
@@ -26,7 +26,7 @@ class RuntimeSparkStageGroupCollector(verbose: Boolean = true) {
 
   private val listLeafStageIds: mutable.Set[Int] = mutable.Set[Int]()
 
-  def getStageGroupMap: TrieMap[Int, StageGroupUnit] = stageGroupMap
+  def getStageGroupMap: TrieMap[Int, SGUnit] = stageGroupMap
 
   private def addStage(stageSubmitted: SparkListenerStageSubmitted): Unit = {
     val rddInfos = stageSubmitted.stageInfo.rddInfos
@@ -47,7 +47,7 @@ class RuntimeSparkStageGroupCollector(verbose: Boolean = true) {
       val sgId = stageGroupSign2Id.size
       stageGroupSign2Id += (stageGroupSign -> sgId)
       stageGroupMap += (sgId ->
-        StageGroupUnit(sgId, stageGroupSign, Seq(stageId), table))
+        SGUnit(sgId, stageGroupSign, Seq(stageId), table))
     }
 
     if (verbose) {
@@ -126,7 +126,7 @@ class RuntimeSparkStageGroupCollector(verbose: Boolean = true) {
     }
   }
 
-  def aggregateResults: TrieMap[Int, GroupStageResults] = {
+  def aggregateResults: TrieMap[Int, SGResults] = {
     stageGroupMap.map { case (sgId, sgUnit) =>
       val stageIds = sgUnit.stageIds
       val (startTime, endTime) =
@@ -146,7 +146,7 @@ class RuntimeSparkStageGroupCollector(verbose: Boolean = true) {
           )
         }
 
-      sgId -> GroupStageResults(
+      sgId -> SGResults(
         id = sgId,
         durationInMs = endTime - startTime,
         totalTasksDurationInMs = totalTasksDurationInMs,
