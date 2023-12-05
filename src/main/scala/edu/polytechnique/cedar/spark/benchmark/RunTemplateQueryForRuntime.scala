@@ -5,8 +5,8 @@ import edu.polytechnique.cedar.spark.collector.UdaoCollector
 
 import edu.polytechnique.cedar.spark.listeners.UDAOSparkListener
 import edu.polytechnique.cedar.spark.sql.extensions.{
-  ExposeRuntimeLogicalPlan,
-  ExposeRuntimeQueryStage
+  ExportRuntimeLogicalPlan,
+  ExportRuntimeQueryStage
 }
 import org.apache.spark.sql.SparkSession
 
@@ -94,10 +94,10 @@ object RunTemplateQueryForRuntime {
         .config("spark.yarn.historyServer.address", "http://localhost:18088")
         .withExtensions { extensions =>
           extensions.injectRuntimeOptimizerPrefixRule(
-            ExposeRuntimeLogicalPlan(_, collector, config.localDebug)
+            ExportRuntimeLogicalPlan(_, collector, config.localDebug)
           )
           extensions.injectQueryStageOptimizerPrefixRule(
-            ExposeRuntimeQueryStage(_, collector, config.localDebug)
+            ExportRuntimeQueryStage(_, collector, config.localDebug)
           )
         }
         .enableHiveSupport()
@@ -107,10 +107,10 @@ object RunTemplateQueryForRuntime {
         .builder()
         .withExtensions { extensions =>
           extensions.injectRuntimeOptimizerPrefixRule(
-            ExposeRuntimeLogicalPlan(_, collector, config.localDebug)
+            ExportRuntimeLogicalPlan(_, collector, config.localDebug)
           )
           extensions.injectQueryStageOptimizerPrefixRule(
-            ExposeRuntimeQueryStage(_, collector, config.localDebug)
+            ExportRuntimeQueryStage(_, collector, config.localDebug)
           )
         }
         .enableHiveSupport()

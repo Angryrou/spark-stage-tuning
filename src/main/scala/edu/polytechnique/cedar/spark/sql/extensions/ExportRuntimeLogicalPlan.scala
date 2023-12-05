@@ -5,7 +5,7 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.rules.Rule
 
-case class ExposeRuntimeLogicalPlan(
+case class ExportRuntimeLogicalPlan(
     spark: SparkSession,
     rc: UdaoCollector,
     debug: Boolean

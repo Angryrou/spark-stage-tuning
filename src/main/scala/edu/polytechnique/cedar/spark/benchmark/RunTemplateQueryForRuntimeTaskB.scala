@@ -4,7 +4,7 @@ import edu.polytechnique.cedar.spark.benchmark.config.RunTemplateQueryConfigTask
 import edu.polytechnique.cedar.spark.collector.UdaoCollector
 import edu.polytechnique.cedar.spark.listeners.UDAOSparkListener
 import edu.polytechnique.cedar.spark.sql.extensions.{
-  ExposeRuntimeLogicalPlan,
+  ExportRuntimeLogicalPlan,
   UpdateThetaR
 }
 import org.apache.spark.sql.SparkSession
@@ -102,7 +102,7 @@ object RunTemplateQueryForRuntimeTaskB {
             )
           }
           extensions.injectRuntimeOptimizerPrefixRule(
-            ExposeRuntimeLogicalPlan(_, collector, config.localDebug)
+            ExportRuntimeLogicalPlan(_, collector, config.localDebug)
           )
         }
         .enableHiveSupport()
@@ -120,7 +120,7 @@ object RunTemplateQueryForRuntimeTaskB {
             )
           }
           extensions.injectRuntimeOptimizerPrefixRule(
-            ExposeRuntimeLogicalPlan(_, collector, config.localDebug)
+            ExportRuntimeLogicalPlan(_, collector, config.localDebug)
           )
         }
         .enableHiveSupport()

@@ -12,7 +12,7 @@ import org.apache.spark.sql.execution.exchange.ReusedExchangeExec
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 
-case class ExposeRuntimeQueryStage(
+case class ExportRuntimeQueryStage(
     spark: SparkSession,
     rc: UdaoCollector,
     debug: Boolean
