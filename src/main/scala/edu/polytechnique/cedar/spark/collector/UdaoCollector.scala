@@ -13,8 +13,7 @@ import org.apache.spark.sql.execution.ui.{
   SparkListenerSQLExecutionEnd,
   SparkListenerSQLExecutionStart
 }
-import org.apache.spark.sql.execution.SparkPlan
-
+import org.apache.spark.sql.execution.{QueryExecution, SparkPlan}
 import org.json4s.{JValue, JsonAST}
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
@@ -28,6 +27,9 @@ class UdaoCollector(verbose: Boolean = true) {
   val snapshotCollector = new RuntimeSnapshotCollector()
   private var sqlStartTimeInMs: Long = -1
   private var sqlEndTimeInMs: Long = -1
+
+  def onCompile(spark: SparkSession, queryContent: String): Unit =
+    compileTimeCollector.onCompile(spark, queryContent)
 
   def onJobStart(jobStart: SparkListenerJobStart): Unit =
     sgCollector.onJobStart(jobStart)
@@ -89,6 +91,7 @@ class UdaoCollector(verbose: Boolean = true) {
       sqlStartTimeInMs > 0 && sqlEndTimeInMs > 0,
       "Assertion failed: cannot be exposed before sqlStartTimeInMs & sqlEndTimeInMs are defined."
     )
+
     val lqpMap = lqpCollector.exposeMap(sqlEndTimeInMs)
     val sgMap = sgCollector.getStageGroupMap
     val sgResultsMap = sgCollector.aggregateResults
@@ -104,12 +107,18 @@ class UdaoCollector(verbose: Boolean = true) {
         )
       )
 
-    val json: JsonAST.JObject =
-      ("RuntimeLQPs" -> lqpMap) ~
+    val json: JsonAST.JObject = {
+      ("CompileTimeLQP" -> compileTimeCollector.exposeJson) ~
+        ("RuntimeLQPs" -> lqpMap) ~
         ("RuntimeQSs" -> qsMap.map(x => (x._1.toString, x._2.json))) ~
         ("SQLStartTimeInMs" -> sqlStartTimeInMs) ~
         ("SQLEndTimeInMs" -> sqlEndTimeInMs) ~
-        ("SQLDurationInMs" -> (sqlEndTimeInMs - sqlStartTimeInMs))
+        ("Objectives" -> (
+          ("DurationInMs" -> (sqlEndTimeInMs - sqlStartTimeInMs)) ~
+            ("IOBytes" -> sgCollector.aggregateAll().json)
+        ))
+
+    }
     pretty(render(json))
   }
 

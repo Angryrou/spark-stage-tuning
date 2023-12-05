@@ -1,15 +1,9 @@
 package edu.polytechnique.cedar.spark.benchmark
 
 import edu.polytechnique.cedar.spark.benchmark.config.RunTemplateQueryConfig
-import edu.polytechnique.cedar.spark.collector.{
-  CompileTimeCollector,
-  UdaoCollector
-}
-import edu.polytechnique.cedar.spark.listeners.{
-  UDAOQueryExecutionListener,
-  UDAOSparkListener
-}
-import edu.polytechnique.cedar.spark.sql.component.F
+import edu.polytechnique.cedar.spark.collector.UdaoCollector
+
+import edu.polytechnique.cedar.spark.listeners.UDAOSparkListener
 import edu.polytechnique.cedar.spark.sql.extensions.{
   ExposeRuntimeLogicalPlan,
   ExposeRuntimeQueryStage
@@ -72,8 +66,7 @@ object RunTemplateQueryForRuntime {
 
   def run(config: RunTemplateQueryConfig): Unit = {
     assert(config.benchmarkName == "TPCH" || config.benchmarkName == "TPCDS")
-    val initialCollector = new CompileTimeCollector()
-    val runtimeCollector = new UdaoCollector(config.verbose)
+    val collector = new UdaoCollector(config.verbose)
     val spark = if (config.localDebug) {
       SparkSession
         .builder()
@@ -101,10 +94,10 @@ object RunTemplateQueryForRuntime {
         .config("spark.yarn.historyServer.address", "http://localhost:18088")
         .withExtensions { extensions =>
           extensions.injectRuntimeOptimizerPrefixRule(
-            ExposeRuntimeLogicalPlan(_, runtimeCollector, config.localDebug)
+            ExposeRuntimeLogicalPlan(_, collector, config.localDebug)
           )
           extensions.injectQueryStageOptimizerPrefixRule(
-            ExposeRuntimeQueryStage(_, runtimeCollector, config.localDebug)
+            ExposeRuntimeQueryStage(_, collector, config.localDebug)
           )
         }
         .enableHiveSupport()
@@ -114,19 +107,17 @@ object RunTemplateQueryForRuntime {
         .builder()
         .withExtensions { extensions =>
           extensions.injectRuntimeOptimizerPrefixRule(
-            ExposeRuntimeLogicalPlan(_, runtimeCollector, config.localDebug)
+            ExposeRuntimeLogicalPlan(_, collector, config.localDebug)
           )
           extensions.injectQueryStageOptimizerPrefixRule(
-            ExposeRuntimeQueryStage(_, runtimeCollector, config.localDebug)
+            ExposeRuntimeQueryStage(_, collector, config.localDebug)
           )
         }
         .enableHiveSupport()
         .getOrCreate()
     }
 
-    initialCollector.markConfiguration(spark)
-    spark.listenerManager.register(UDAOQueryExecutionListener(initialCollector))
-    spark.sparkContext.addSparkListener(UDAOSparkListener(runtimeCollector))
+    spark.sparkContext.addSparkListener(UDAOSparkListener(collector))
 
     val databaseName =
       if (config.databaseName == null)
@@ -150,30 +141,18 @@ object RunTemplateQueryForRuntime {
     println(s"run ${queryLocationHeader}/${tid}/${tid}-${qid}.sql")
 //    if (config.localDebug)
 //      println(queryContent)
-
-    initialCollector.setLQP(
-      spark.sql(queryContent).queryExecution.optimizedPlan
-    )
+    collector.onCompile(spark, queryContent)
     spark.sql(queryContent).collect()
     spark.close()
 
     val xFile = new File(config.extractedPath)
     xFile.mkdirs()
 
-    val writer1 = new PrintWriter(
-      s"${config.extractedPath}/${spark.sparkContext.appName}_${spark.sparkContext.applicationId}_initial.json"
+    val writer = new PrintWriter(
+      s"${config.extractedPath}/${spark.sparkContext.appName}_${spark.sparkContext.applicationId}.json"
     )
-    val jsonString = initialCollector.toString
-    // println(jsonString)
-    writer1.write(jsonString)
-    writer1.close()
-
-    val writer2 = new PrintWriter(
-      s"${config.extractedPath}/${spark.sparkContext.appName}_${spark.sparkContext.applicationId}_runtime.json"
-    )
-    val lqpJsonString = runtimeCollector.dump2String
-    // println(lqpJsonString)
-    writer2.write(lqpJsonString)
-    writer2.close()
+    val jsonString = collector.dump2String
+    writer.write(jsonString)
+    writer.close()
   }
 }

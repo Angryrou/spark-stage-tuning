@@ -1,7 +1,16 @@
 package edu.polytechnique.cedar.spark.collector
 
-import edu.polytechnique.cedar.spark.sql.component.{GroupStageResults, IOBytesUnit, StageGroupUnit}
-import org.apache.spark.scheduler.{SparkListenerJobStart, SparkListenerStageCompleted, SparkListenerStageSubmitted, SparkListenerTaskEnd}
+import edu.polytechnique.cedar.spark.sql.component.{
+  GroupStageResults,
+  IOBytesUnit,
+  StageGroupUnit
+}
+import org.apache.spark.scheduler.{
+  SparkListenerJobStart,
+  SparkListenerStageCompleted,
+  SparkListenerStageSubmitted,
+  SparkListenerTaskEnd
+}
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
@@ -102,6 +111,18 @@ class RuntimeSparkStageGroupCollector(verbose: Boolean = true) {
         case None =>
           stageTotalTasksDurationDict.update(stageId, info.duration)
       }
+    }
+  }
+
+  def aggregateAll(): IOBytesUnit = {
+    stageGroupMap.values.flatMap(_.stageIds).map(stageIOBytesDict(_)).reduce {
+      (x, y) =>
+        IOBytesUnit(
+          inputRead = x.inputRead + y.inputRead,
+          inputWritten = x.inputWritten + y.inputWritten,
+          shuffleRead = x.shuffleRead + y.shuffleRead,
+          shuffleWritten = x.shuffleWritten + y.shuffleWritten
+        )
     }
   }
 
