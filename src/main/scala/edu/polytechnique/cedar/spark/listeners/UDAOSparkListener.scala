@@ -1,5 +1,5 @@
 package edu.polytechnique.cedar.spark.listeners
-import edu.polytechnique.cedar.spark.collector.RuntimeCollector
+import edu.polytechnique.cedar.spark.collector.UdaoCollector
 import org.apache.spark.scheduler.{
   SparkListener,
   SparkListenerEvent,
@@ -15,7 +15,7 @@ import org.apache.spark.sql.execution.ui.{
   SparkListenerSQLExecutionStart
 }
 
-case class UDAOSparkListener(rc: RuntimeCollector) extends SparkListener {
+case class UDAOSparkListener(rc: UdaoCollector) extends SparkListener {
 
   override def onJobStart(
       jobStart: SparkListenerJobStart

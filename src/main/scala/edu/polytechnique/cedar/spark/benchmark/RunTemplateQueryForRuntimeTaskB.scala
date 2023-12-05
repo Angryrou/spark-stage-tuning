@@ -3,7 +3,7 @@ package edu.polytechnique.cedar.spark.benchmark
 import edu.polytechnique.cedar.spark.benchmark.config.RunTemplateQueryConfigTaskB
 import edu.polytechnique.cedar.spark.collector.{
   CompileTimeCollector,
-  RuntimeCollector
+  UdaoCollector
 }
 import edu.polytechnique.cedar.spark.listeners.{
   UDAOQueryExecutionListener,
@@ -74,7 +74,7 @@ object RunTemplateQueryForRuntimeTaskB {
   def run(config: RunTemplateQueryConfigTaskB): Unit = {
     assert(config.benchmarkName == "TPCH" || config.benchmarkName == "TPCDS")
     val initialCollector = new CompileTimeCollector()
-    val runtimeCollector = new RuntimeCollector()
+    val runtimeCollector = new UdaoCollector()
     val spark = if (config.localDebug) {
       SparkSession
         .builder()

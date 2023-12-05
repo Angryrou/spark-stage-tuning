@@ -1,15 +1,7 @@
-package edu.polytechnique.cedar.spark.collector.runtime
-import edu.polytechnique.cedar.spark.sql.component.{
-  GroupStageResults,
-  IOBytesUnit,
-  StageGroupUnit
-}
-import org.apache.spark.scheduler.{
-  SparkListenerJobStart,
-  SparkListenerStageCompleted,
-  SparkListenerStageSubmitted,
-  SparkListenerTaskEnd
-}
+package edu.polytechnique.cedar.spark.collector
+
+import edu.polytechnique.cedar.spark.sql.component.{GroupStageResults, IOBytesUnit, StageGroupUnit}
+import org.apache.spark.scheduler.{SparkListenerJobStart, SparkListenerStageCompleted, SparkListenerStageSubmitted, SparkListenerTaskEnd}
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable

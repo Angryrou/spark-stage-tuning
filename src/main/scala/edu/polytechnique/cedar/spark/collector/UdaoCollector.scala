@@ -1,11 +1,4 @@
 package edu.polytechnique.cedar.spark.collector
-
-import edu.polytechnique.cedar.spark.collector.runtime.{
-  RuntimeLogicalQueryPlanCollector,
-  RuntimeQueryStageCollector,
-  RuntimeSnapshotCollector,
-  RuntimeSparkStageGroupCollector
-}
 import org.apache.spark.scheduler.{
   SparkListenerJobStart,
   SparkListenerStageCompleted,
@@ -26,8 +19,9 @@ import org.json4s.{JValue, JsonAST}
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
-class RuntimeCollector(verbose: Boolean = true) {
+class UdaoCollector(verbose: Boolean = true) {
 
+  val compileTimeCollector = new CompileTimeCollector()
   val lqpCollector = new RuntimeLogicalQueryPlanCollector()
   val sgCollector = new RuntimeSparkStageGroupCollector(verbose)
   val qsCollector = new RuntimeQueryStageCollector(verbose)

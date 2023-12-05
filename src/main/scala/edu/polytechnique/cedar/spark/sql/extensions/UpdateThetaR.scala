@@ -1,15 +1,15 @@
 package edu.polytechnique.cedar.spark.sql.extensions
-import edu.polytechnique.cedar.spark.collector.RuntimeCollector
+import edu.polytechnique.cedar.spark.collector.UdaoCollector
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.rules.Rule
 import edu.polytechnique.cedar.spark.sql.component.F
 
 case class UpdateThetaR(
-    spark: SparkSession,
-    rc: RuntimeCollector,
-    updateLqpId: Int,
-    debug: Boolean
+                         spark: SparkSession,
+                         rc: UdaoCollector,
+                         updateLqpId: Int,
+                         debug: Boolean
 ) extends Rule[LogicalPlan] {
 
   private val target = Map(

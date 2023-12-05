@@ -1,18 +1,11 @@
-package edu.polytechnique.cedar.spark.collector.runtime
+package edu.polytechnique.cedar.spark.collector
+
 import edu.polytechnique.cedar.spark.sql.component.F.KnobKV
-import edu.polytechnique.cedar.spark.sql.component.{
-  F,
-  GroupStageResults,
-  QSIndex,
-  QSUnitMetrics,
-  QueryStageUnit,
-  RunningSnapshot,
-  StageGroupUnit
-}
+import edu.polytechnique.cedar.spark.sql.component._
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.execution.ui.SparkListenerOnQueryStageSubmitted
 import org.apache.spark.sql.execution.SparkPlan
+import org.apache.spark.sql.execution.ui.SparkListenerOnQueryStageSubmitted
 
 import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.concurrent.TrieMap

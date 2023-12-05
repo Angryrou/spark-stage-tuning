@@ -1,5 +1,5 @@
 package edu.polytechnique.cedar.spark.sql.extensions
-import edu.polytechnique.cedar.spark.collector.RuntimeCollector
+import edu.polytechnique.cedar.spark.collector.UdaoCollector
 import edu.polytechnique.cedar.spark.sql.component.F
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -13,9 +13,9 @@ import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 
 case class ExposeRuntimeQueryStage(
-    spark: SparkSession,
-    rc: RuntimeCollector,
-    debug: Boolean
+                                    spark: SparkSession,
+                                    rc: UdaoCollector,
+                                    debug: Boolean
 ) extends Rule[SparkPlan] {
 
   private val observedLogicalQS = mutable.Set[LogicalPlan]()

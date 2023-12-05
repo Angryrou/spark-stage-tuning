@@ -1,11 +1,11 @@
-package edu.polytechnique.cedar.spark.collector.runtime
-import edu.polytechnique.cedar.spark.sql.component.F.KnobKV
+package edu.polytechnique.cedar.spark.collector
 
-import java.util.concurrent.atomic.AtomicInteger
+import edu.polytechnique.cedar.spark.sql.component.F.KnobKV
 import edu.polytechnique.cedar.spark.sql.component.{LQPUnit, RunningSnapshot}
 import org.json4s.JsonAST
 import org.json4s.JsonDSL._
 
+import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.concurrent.TrieMap
 class RuntimeLogicalQueryPlanCollector {
 
