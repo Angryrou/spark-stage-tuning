@@ -50,7 +50,7 @@ object F {
       existedLQPs: Set[LogicalPlan],
       forQueryStage: Boolean
   ): Unit = {
-    val logicalOperator = LogicalOperator(plan)
+    val logicalOperator = LogicalOperator(plan, forQueryStage)
     if (existedLQPs.contains(plan.canonicalized)) { return }
 
     if (!signToOpId.contains(logicalOperator.sign)) {
