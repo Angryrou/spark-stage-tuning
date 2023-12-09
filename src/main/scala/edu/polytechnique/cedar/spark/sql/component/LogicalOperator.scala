@@ -17,13 +17,16 @@ case class LogicalOperator(plan: LogicalPlan, forQueryStage: Boolean)
     val sizeInBytes = plan.stats.sizeInBytes
     val rowCount = plan.stats.rowCount.getOrElse(BigInt(-1))
     val (sizeInBytesEstimated, rowCountEstimated) = if (plan.stats.isRuntime) {
-      assert(plan.isInstanceOf[LogicalQueryStage], plan.getClass.getName)
-      val statsEstimated =
-        plan.asInstanceOf[LogicalQueryStage].logicalPlan.stats
-      (
-        statsEstimated.sizeInBytes,
-        statsEstimated.rowCount.getOrElse(BigInt(-1))
-      )
+      plan match {
+        case lqp: LogicalQueryStage =>
+          val statsEstimated = lqp.logicalPlan.stats
+          (
+            statsEstimated.sizeInBytes,
+            statsEstimated.rowCount.getOrElse(BigInt(-1))
+          )
+        case _ =>
+          new Exception("Should be LogicalQueryStage")
+      }
     } else {
       (sizeInBytes, rowCount)
     }
