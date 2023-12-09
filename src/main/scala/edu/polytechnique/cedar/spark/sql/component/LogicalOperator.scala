@@ -25,7 +25,7 @@ case class LogicalOperator(plan: LogicalPlan, forQueryStage: Boolean)
             statsEstimated.rowCount.getOrElse(BigInt(-1))
           )
         case _ =>
-          print("--> plan is not LogicalQueryStage")
+          print(s"--> LogicalOperator is a ${plan.getClass.getName}}")
           (sizeInBytes, rowCount)
       }
     } else {
@@ -34,7 +34,6 @@ case class LogicalOperator(plan: LogicalPlan, forQueryStage: Boolean)
 
     ("sign" -> sign) ~
       ("className" -> plan.getClass.getName) ~
-      ("sizeInBytes" -> sizeInBytes) ~
       ("stats" ->
         ("runtime" -> (("sizeInBytes" -> sizeInBytes) ~ ("rowCount" -> rowCount))) ~
         ("compileTime" -> (("sizeInBytes" -> sizeInBytesEstimated) ~ ("rowCount" -> rowCountEstimated)))) ~
