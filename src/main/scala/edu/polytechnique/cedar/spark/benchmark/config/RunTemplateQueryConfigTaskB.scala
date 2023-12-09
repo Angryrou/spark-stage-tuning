@@ -1,7 +1,7 @@
 package edu.polytechnique.cedar.spark.benchmark.config
 
 case class RunTemplateQueryConfigTaskB(
-    benchmarkName: String = null, // TPCH / TPCDS
+    benchmarkName: String = null, // tpch / tpcds
     scaleFactor: String = null, // 1
     queryLocationHeader: String = null,
     databaseName: String = null,
