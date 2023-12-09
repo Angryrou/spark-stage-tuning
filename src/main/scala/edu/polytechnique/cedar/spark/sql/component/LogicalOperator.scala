@@ -25,11 +25,13 @@ case class LogicalOperator(plan: LogicalPlan, forQueryStage: Boolean)
             statsEstimated.rowCount.getOrElse(BigInt(-1))
           )
         case _ =>
-          new Exception("Should be LogicalQueryStage")
+          print("--> plan is not LogicalQueryStage")
+          (sizeInBytes, rowCount)
       }
     } else {
       (sizeInBytes, rowCount)
     }
+
     ("sign" -> sign) ~
       ("className" -> plan.getClass.getName) ~
       ("sizeInBytes" -> sizeInBytes) ~
