@@ -89,7 +89,11 @@ object F {
         case lqs: LogicalQueryStage =>
           lqs.physicalPlan match {
             case sqs: ShuffleQueryStageExec =>
-              if (sqs.isMaterialized && sqs.mapStats.isDefined) {
+              if (sqs.isMaterialized) {
+                assert(
+                  sqs.mapStats.isDefined,
+                  "some failure has already happened, debug needed."
+                )
                 val shuffleId = sqs.mapStats.get.shuffleId
                 val bytesByPartitionId: Array[Long] = sqs.mapStats match {
                   case Some(ms) => ms.bytesByPartitionId
