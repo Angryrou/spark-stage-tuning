@@ -89,7 +89,7 @@ object F {
         case lqs: LogicalQueryStage =>
           lqs.physicalPlan match {
             case sqs: ShuffleQueryStageExec =>
-              if (sqs.isMaterialized) {
+              if (sqs.isMaterialized && sqs.mapStats.isDefined) {
                 val shuffleId = sqs.mapStats.get.shuffleId
                 val bytesByPartitionId: Array[Long] = sqs.mapStats match {
                   case Some(ms) => ms.bytesByPartitionId
