@@ -49,9 +49,13 @@ class RuntimeSnapshotCollector {
         stageId,
         mutable.Buffer[(TaskInfo, TaskMetrics)]()
       ) += ((info, metrics))
+      if (taskMetricsMap(stageId).size == numTasksBookKeeper(stageId))
+        removeStageById(stageId)
+    } else {
+      println(
+        s"---> to debug: taskEnd: stageId=${stageId}, info=${info}, metrics=${metrics}"
+      )
     }
-    if (taskMetricsMap(stageId).size == numTasksBookKeeper(stageId))
-      removeStageById(stageId)
   }
 
   def removeStageById(stageId: Int): Unit = {
