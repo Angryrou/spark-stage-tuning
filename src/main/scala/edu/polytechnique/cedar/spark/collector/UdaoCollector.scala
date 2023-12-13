@@ -15,8 +15,8 @@ import org.apache.spark.sql.execution.ui.{
   SparkListenerSQLExecutionEnd,
   SparkListenerSQLExecutionStart
 }
-import org.apache.spark.sql.execution.{QueryExecution, SparkPlan}
-import org.json4s.{JValue, JsonAST}
+import org.apache.spark.sql.execution.SparkPlan
+import org.json4s.JsonAST
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
