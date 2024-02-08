@@ -26,12 +26,21 @@ import org.apache.spark.sql.execution.{
 import scala.collection.mutable
 import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.concurrent.TrieMap
+import java.time.{Duration, Instant}
 
 object F {
 
   type KnobKV = (String, String)
 
   def getTimeInMs: Long = System.currentTimeMillis()
+
+  def runtime[R](block: => R): (R, Duration) = {
+    val startInstant = Instant.now()
+    val result = block
+    val endInstant = Instant.now()
+    val duration = Duration.between(startInstant, endInstant)
+    (result, duration)
+  }
 
   def getExecutionId(spark: SparkSession): Option[Long] = {
     Option(spark.sparkContext.getLocalProperty(SQLExecution.EXECUTION_ID_KEY))
@@ -354,8 +363,8 @@ object F {
   private val runtimeKnobsDict = Map(
     "theta_c" -> Seq(
       /* context parameters (theta_c) */
-      "spark.executor.memory", // k1
-      "spark.executor.cores", // k2
+      "spark.executor.cores", // k1
+      "spark.executor.memory", // k2
       "spark.executor.instances", // k3
       "spark.default.parallelism", // k4
       "spark.reducer.maxSizeInFlight", // k5

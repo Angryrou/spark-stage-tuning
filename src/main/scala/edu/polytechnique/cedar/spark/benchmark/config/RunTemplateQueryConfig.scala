@@ -9,5 +9,8 @@ case class RunTemplateQueryConfig(
     templateName: String = null,
     extractedPath: String = null,
     localDebug: Boolean = false,
-    verbose: Boolean = false
+    verbose: Boolean = false,
+    enableRuntimeSolver: Boolean = false,
+    runtimeSolverHost: String = "localhost",
+    runtimeSolverPort: Int = 12345
 )

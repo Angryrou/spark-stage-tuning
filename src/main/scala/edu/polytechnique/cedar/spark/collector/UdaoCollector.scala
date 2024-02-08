@@ -1,6 +1,11 @@
 package edu.polytechnique.cedar.spark.collector
 import edu.polytechnique.cedar.spark.sql.component.F.KnobKV
-import edu.polytechnique.cedar.spark.sql.component.{LQPUnit, RunningSnapshot}
+import edu.polytechnique.cedar.spark.sql.component.{
+  LQPUnit,
+  QSMetrics,
+  RunningSnapshot
+}
+import edu.polytechnique.cedar.spark.udao.UdaoClient
 import org.apache.spark.scheduler.{
   SparkListenerJobStart,
   SparkListenerStageCompleted,
@@ -89,14 +94,15 @@ class UdaoCollector(verbose: Boolean = true) {
 
   def exportRuntimeQueryStageBeforeOptimization(
       plan: SparkPlan,
-      spark: SparkSession,
-      observedLogicalQS: Set[LogicalPlan]
+      qsMetrics: QSMetrics,
+      snapshot: RunningSnapshot,
+      runtimeKnobsDict: Map[String, Array[KnobKV]]
   ): Int = {
     qsCollector.exportRuntimeQueryStageBeforeOptimization(
       plan,
-      spark,
-      observedLogicalQS,
-      snapshotCollector.snapshot()
+      qsMetrics,
+      snapshot,
+      runtimeKnobsDict
     )
   }
 

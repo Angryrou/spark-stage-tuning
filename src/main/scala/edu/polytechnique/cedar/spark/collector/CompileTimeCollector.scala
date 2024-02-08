@@ -1,20 +1,10 @@
 package edu.polytechnique.cedar.spark.collector
 
 import edu.polytechnique.cedar.spark.sql.component.F.KnobKV
-import edu.polytechnique.cedar.spark.sql.component.{
-  F,
-  IOBytesUnit,
-  LQPUnit,
-  MyUnit
-}
+import edu.polytechnique.cedar.spark.sql.component.{F, LQPUnit}
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.execution.QueryExecution
-import org.json4s.{JValue, JsonAST}
+import org.json4s.JsonAST
 import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods.render
-
-import scala.collection.concurrent.TrieMap
 
 class CompileTimeCollector {
 

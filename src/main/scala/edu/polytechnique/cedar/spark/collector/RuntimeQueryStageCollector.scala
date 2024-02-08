@@ -2,8 +2,6 @@ package edu.polytechnique.cedar.spark.collector
 
 import edu.polytechnique.cedar.spark.sql.component.F.KnobKV
 import edu.polytechnique.cedar.spark.sql.component._
-import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.execution.ui.SparkListenerOnQueryStageSubmitted
 
@@ -25,14 +23,14 @@ class RuntimeQueryStageCollector(verbose: Boolean = false) {
 
   def exportRuntimeQueryStageBeforeOptimization(
       plan: SparkPlan,
-      spark: SparkSession,
-      observedLogicalQS: Set[LogicalPlan],
-      snapshot: RunningSnapshot
+      qsMetrics: QSMetrics,
+      snapshot: RunningSnapshot,
+      runtimeKnobsDict: Map[String, Array[KnobKV]]
   ): Int = {
     val curId = qsOptId.getAndIncrement()
-    qsOptIdMap += (curId -> F.exportQSMetrics(plan, observedLogicalQS))
+    qsOptIdMap += (curId -> qsMetrics)
     snapshotMap += (curId -> snapshot)
-    thetaRMap += (curId -> F.getRuntimeConfiguration(spark))
+    thetaRMap += (curId -> runtimeKnobsDict)
     tableMap += (curId -> F.getLeafTables(plan))
     curId
   }

@@ -2,12 +2,12 @@ package edu.polytechnique.cedar.spark.benchmark
 
 import edu.polytechnique.cedar.spark.benchmark.config.RunTemplateQueryConfig
 import edu.polytechnique.cedar.spark.collector.UdaoCollector
-
 import edu.polytechnique.cedar.spark.listeners.UDAOSparkListener
 import edu.polytechnique.cedar.spark.sql.extensions.{
   ExportRuntimeLogicalPlan,
   ExportRuntimeQueryStage
 }
+import edu.polytechnique.cedar.spark.udao.UdaoClient
 import org.apache.spark.sql.SparkSession
 
 import java.io.PrintWriter
@@ -52,6 +52,12 @@ object RunTemplateQueryForRuntime {
         opt[String]('v', "verbose")
           .action((x, c) => c.copy(verbose = x.toBoolean))
           .text("Verbose")
+        opt[String]('u', "enableRuntimeSolver")
+          .action((x, c) => c.copy(enableRuntimeSolver = x.toBoolean))
+        opt[String]("runtimeSolverHost")
+          .action((x, c) => c.copy(runtimeSolverHost = x))
+        opt[String]("runtimeSolverPort")
+          .action((x, c) => c.copy(runtimeSolverPort = x.toInt))
         help("help")
           .text("prints this usage text")
       }
@@ -67,7 +73,12 @@ object RunTemplateQueryForRuntime {
   def run(config: RunTemplateQueryConfig): Unit = {
     assert(config.benchmarkName == "tpch" || config.benchmarkName == "tpcds")
     val collector = new UdaoCollector(config.verbose)
-    val spark = if (config.localDebug) {
+    val udaoClient: Option[UdaoClient] =
+      if (config.enableRuntimeSolver)
+        Some(new UdaoClient(config.runtimeSolverHost, config.runtimeSolverPort))
+      else None
+    val debug = config.localDebug
+    val spark = if (debug) {
       SparkSession
         .builder()
         .appName(
@@ -94,10 +105,10 @@ object RunTemplateQueryForRuntime {
         .config("spark.yarn.historyServer.address", "http://localhost:18088")
         .withExtensions { extensions =>
           extensions.injectRuntimeOptimizerPrefixRule(
-            ExportRuntimeLogicalPlan(_, collector, config.localDebug)
+            ExportRuntimeLogicalPlan(_, collector, debug, udaoClient)
           )
           extensions.injectQueryStageOptimizerPrefixRule(
-            ExportRuntimeQueryStage(_, collector, config.localDebug)
+            ExportRuntimeQueryStage(_, collector, debug, udaoClient)
           )
         }
         .enableHiveSupport()
@@ -107,10 +118,10 @@ object RunTemplateQueryForRuntime {
         .builder()
         .withExtensions { extensions =>
           extensions.injectRuntimeOptimizerPrefixRule(
-            ExportRuntimeLogicalPlan(_, collector, config.localDebug)
+            ExportRuntimeLogicalPlan(_, collector, debug, udaoClient)
           )
           extensions.injectQueryStageOptimizerPrefixRule(
-            ExportRuntimeQueryStage(_, collector, config.localDebug)
+            ExportRuntimeQueryStage(_, collector, debug, udaoClient)
           )
         }
         .enableHiveSupport()
@@ -139,8 +150,6 @@ object RunTemplateQueryForRuntime {
     println(spark.sparkContext.getConf.get("spark.yarn.historyServer.address"))
 
     println(s"run ${queryLocationHeader}/${tid}/${tid}-${qid}.sql")
-//    if (config.localDebug)
-//      println(queryContent)
     collector.onCompile(spark, queryContent)
     spark.sql(queryContent).collect()
     spark.close()

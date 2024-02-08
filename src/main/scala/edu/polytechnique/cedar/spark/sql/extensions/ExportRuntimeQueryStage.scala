@@ -1,6 +1,11 @@
 package edu.polytechnique.cedar.spark.sql.extensions
 import edu.polytechnique.cedar.spark.collector.UdaoCollector
-import edu.polytechnique.cedar.spark.sql.component.F
+import edu.polytechnique.cedar.spark.sql.component.{
+  F,
+  QSMetrics,
+  RunningSnapshot
+}
+import edu.polytechnique.cedar.spark.udao.UdaoClient
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.rules.Rule
@@ -8,6 +13,8 @@ import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec.TEMP_OPTIMIZED_STAGE_ORDER_TAG
 import org.apache.spark.sql.execution.adaptive.QueryStageExec
 import org.apache.spark.sql.execution.exchange.ReusedExchangeExec
+import org.json4s.JsonDSL._
+import org.json4s.jackson.JsonMethods.{compact, render}
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
@@ -15,12 +22,27 @@ import scala.collection.mutable
 case class ExportRuntimeQueryStage(
     spark: SparkSession,
     rc: UdaoCollector,
-    debug: Boolean
+    debug: Boolean,
+    udaoClient: Option[UdaoClient] = None
 ) extends Rule[SparkPlan] {
 
   private val observedLogicalQS = mutable.Set[LogicalPlan]()
   private val observedPhysicalQS = mutable.Set[SparkPlan]()
   val canon2IdMap: TrieMap[SparkPlan, Int] = new TrieMap()
+
+  private def encodeMessage(
+      qsMetrics: QSMetrics,
+      snapshot: RunningSnapshot
+  ): String = {
+    val jObject = ("RequestType" -> "RuntimeQS") ~
+      ("QsOptId" -> rc.qsCollector.getQsOptId) ~
+      qsMetrics.json ~
+      ("RunningQueryStageSnapshot" -> snapshot.toJson) ~
+      ("CurrentConfiguration" -> F
+        .getAllConfiguration(spark)
+        .map(y => (y._1, y._2.toSeq)))
+    compact(render(jObject))
+  }
 
   override def apply(plan: SparkPlan): SparkPlan = {
 
@@ -66,12 +88,25 @@ case class ExportRuntimeQueryStage(
       case _ =>
     }
 
+    val snapshot = rc.snapshotCollector.snapshot()
+    val qsMetrics = F.exportQSMetrics(plan, observedLogicalQS.toSet)
+
+    if (udaoClient.isDefined) {
+      val msg = encodeMessage(qsMetrics, snapshot)
+      println("!! message prepared and sent for runtime QS")
+      val (response, dt) = udaoClient.get.getUpdateTheta(msg)
+      print(
+        s" >>> \n, got: $response, took: ${dt.toMillis} ms\n <<<"
+      )
+    }
+
     // export the query stage
     val optId =
       rc.exportRuntimeQueryStageBeforeOptimization(
         plan,
-        spark,
-        observedLogicalQS.toSet
+        qsMetrics = qsMetrics,
+        snapshot = snapshot,
+        runtimeKnobsDict = F.getRuntimeConfiguration(spark)
       )
 
     plan.setTagValue(TEMP_OPTIMIZED_STAGE_ORDER_TAG, optId)
