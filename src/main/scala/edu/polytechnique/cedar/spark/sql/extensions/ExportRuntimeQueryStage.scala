@@ -36,7 +36,12 @@ case class ExportRuntimeQueryStage(
   ): String = {
     val jObject = ("RequestType" -> "RuntimeQS") ~
       ("QsOptId" -> rc.qsCollector.getQsOptId) ~
-      qsMetrics.json ~
+      ("QSLogical" -> qsMetrics.logicalPlanMetrics.toJson) ~
+      ("IM" -> qsMetrics.inputMetaInfo.toJson) ~
+      ("InitialPartitionNum" -> qsMetrics.initialPartitionNum) ~
+      ("PD" -> qsMetrics.mapPartitionDistributionDict.map(x =>
+        (x._1.toString, x._2.toList)
+      )) ~
       ("RunningQueryStageSnapshot" -> snapshot.toJson) ~
       ("CurrentConfiguration" -> F
         .getAllConfiguration(spark)
