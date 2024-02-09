@@ -24,7 +24,7 @@ case class ExportRuntimeLogicalPlan(
         ("LqpId" -> rc.lqpCollector.getLqpId) ~
         lqpUnit.json ~
         ("RunningQueryStageSnapshot" -> snapshot.toJson) ~
-        ("CurrentConfiguration" -> F
+        ("Configuration" -> F
           .getAllConfiguration(spark)
           .map(y => (y._1, y._2.toSeq)))
     compact(render(jObject))
