@@ -91,4 +91,4 @@ qpath=/opt/hex_users/$USER/chenghao/UDAO2022
 --files "$lpath" \
 --jars ~/spark/examples/jars/scopt_2.12-3.7.1.jar \
 $spath/target/scala-2.12/spark-stage-tuning_2.12-1.0-SNAPSHOT.jar \
--u -b tpch -t ${tid} -q ${qid} -s 100 -x ${xpath} -l ${qpath}/resources/tpch-kit/spark-sqls #> ${loc}/${name}_x${trial}.log 2>&1
+-u true -b tpch -t ${tid} -q ${qid} -s 100 -x ${xpath} -l ${qpath}/resources/tpch-kit/spark-sqls #> ${loc}/${name}_x${trial}.log 2>&1
