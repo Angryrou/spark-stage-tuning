@@ -103,6 +103,7 @@ case class ExportRuntimeQueryStage(
       print(
         s" >>> \n, got: $response, took: ${dt.toMillis} ms\n <<<"
       )
+      F.decodeMessageAndSetconf(response, spark)
     }
 
     // export the query stage

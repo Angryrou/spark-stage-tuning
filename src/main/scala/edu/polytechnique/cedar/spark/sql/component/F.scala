@@ -22,6 +22,8 @@ import org.apache.spark.sql.execution.{
   UnaryExecNode,
   UnionExec
 }
+import org.json4s.{DefaultFormats, JValue}
+import org.json4s.jackson.JsonMethods.parse
 
 import scala.collection.mutable
 import java.util.concurrent.atomic.AtomicInteger
@@ -434,6 +436,16 @@ object F {
         shuffleRead = x.shuffleRead + y.shuffleRead,
         shuffleWritten = x.shuffleWritten + y.shuffleWritten
       )
+    }
+  }
+
+  implicit val formats: DefaultFormats.type = DefaultFormats
+  def decodeMessageAndSetconf(message: String, spark: SparkSession): Unit = {
+    val json: JValue = parse(message)
+    val confKV = json.extract[Map[String, String]]
+    println("start setting updated runtime parameters")
+    for ((k, v) <- confKV) {
+      spark.conf.set(k, v)
     }
   }
 

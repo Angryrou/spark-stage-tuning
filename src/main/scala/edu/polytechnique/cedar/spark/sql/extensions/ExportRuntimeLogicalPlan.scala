@@ -31,12 +31,6 @@ case class ExportRuntimeLogicalPlan(
     compact(render(jObject))
   }
 
-  implicit val formats: DefaultFormats.type = DefaultFormats
-  private def decodeMessage(message: String): Map[String, String] = {
-    val json: JValue = parse(message)
-    json.extract[Map[String, String]]
-  }
-
   override def apply(plan: LogicalPlan): LogicalPlan = {
     val executionId = F.getExecutionId(spark)
     // just for our experiment -- we do not have duplicated commands.
@@ -54,11 +48,7 @@ case class ExportRuntimeLogicalPlan(
         print(
           s" >>> \n, got: $response, took: ${dt.toMillis} ms\n <<<"
         )
-        val confKV = decodeMessage(response)
-        println("start setting updated runtime parameters")
-        for ((k, v) <- confKV) {
-          spark.conf.set(k, v)
-        }
+        F.decodeMessageAndSetconf(response, spark)
       }
       val lqpId = rc.exportRuntimeLogicalPlanBeforeOptimization(
         lqpUnit = lqpUnit,
