@@ -5,8 +5,9 @@ import edu.polytechnique.cedar.spark.udao.UdaoClient
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.rules.Rule
+import org.json4s.{DefaultFormats, JValue}
 import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods.{compact, render}
+import org.json4s.jackson.JsonMethods.{compact, parse, render}
 
 case class ExportRuntimeLogicalPlan(
     spark: SparkSession,
@@ -30,6 +31,12 @@ case class ExportRuntimeLogicalPlan(
     compact(render(jObject))
   }
 
+  implicit val formats: DefaultFormats.type = DefaultFormats
+  private def decodeMessage(message: String): Map[String, String] = {
+    val json: JValue = parse(message)
+    json.extract[Map[String, String]]
+  }
+
   override def apply(plan: LogicalPlan): LogicalPlan = {
     val executionId = F.getExecutionId(spark)
     // just for our experiment -- we do not have duplicated commands.
@@ -47,6 +54,11 @@ case class ExportRuntimeLogicalPlan(
         print(
           s" >>> \n, got: $response, took: ${dt.toMillis} ms\n <<<"
         )
+        val confKV = decodeMessage(response)
+        println("start setting updated runtime parameters")
+        for ((k, v) <- confKV) {
+          spark.conf.set(k, v)
+        }
       }
       val lqpId = rc.exportRuntimeLogicalPlanBeforeOptimization(
         lqpUnit = lqpUnit,
