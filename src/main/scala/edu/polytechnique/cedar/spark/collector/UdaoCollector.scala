@@ -25,7 +25,7 @@ import org.json4s.JsonAST
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
-class UdaoCollector(verbose: Boolean = true) {
+class UdaoCollector(verbose: Boolean = true, tid: String = "") {
 
   val compileTimeCollector = new CompileTimeCollector()
   val lqpCollector = new RuntimeLogicalQueryPlanCollector()
@@ -34,6 +34,8 @@ class UdaoCollector(verbose: Boolean = true) {
   val snapshotCollector = new RuntimeSnapshotCollector()
   private var sqlStartTimeInMs: Long = -1
   private var sqlEndTimeInMs: Long = -1
+
+  def getTemplateId: String = tid
 
   def onCompile(spark: SparkSession, queryContent: String): Unit =
     compileTimeCollector.onCompile(spark, queryContent)

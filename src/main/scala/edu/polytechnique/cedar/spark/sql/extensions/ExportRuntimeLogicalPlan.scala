@@ -22,6 +22,7 @@ case class ExportRuntimeLogicalPlan(
   ): String = {
     val jObject =
       ("RequestType" -> "RuntimeLQP") ~
+        ("TemplateId" -> rc.getTemplateId) ~
         ("LqpId" -> rc.lqpCollector.getLqpId) ~
         lqpUnit.json ~
         ("RunningQueryStageSnapshot" -> snapshot.toJson) ~

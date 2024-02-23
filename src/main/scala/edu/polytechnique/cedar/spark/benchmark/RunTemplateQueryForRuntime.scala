@@ -72,7 +72,9 @@ object RunTemplateQueryForRuntime {
 
   def run(config: RunTemplateQueryConfig): Unit = {
     assert(config.benchmarkName == "tpch" || config.benchmarkName == "tpcds")
-    val collector = new UdaoCollector(config.verbose)
+    val tid: String = config.templateName
+    val qid: String = config.queryName
+    val collector = new UdaoCollector(config.verbose, tid)
     val udaoClient: Option[UdaoClient] =
       if (config.enableRuntimeSolver)
         Some(new UdaoClient(config.runtimeSolverHost, config.runtimeSolverPort))
@@ -134,8 +136,6 @@ object RunTemplateQueryForRuntime {
       if (config.databaseName == null)
         s"${config.benchmarkName}_${config.scaleFactor}"
       else config.databaseName
-    val tid: String = config.templateName
-    val qid: String = config.queryName
     val queryLocationHeader: String = config.queryLocationHeader
 
     spark.sql(s"use $databaseName")

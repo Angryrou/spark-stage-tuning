@@ -35,6 +35,7 @@ case class ExportRuntimeQueryStage(
       snapshot: RunningSnapshot
   ): String = {
     val jObject = ("RequestType" -> "RuntimeQS") ~
+      ("TemplateId" -> rc.getTemplateId) ~
       ("QsOptId" -> rc.qsCollector.getQsOptId) ~
       ("QSPhysical" -> qsMetrics.physicalPlanMetrics.toJson) ~
       ("IM" -> qsMetrics.inputMetaInfo.toJson) ~
