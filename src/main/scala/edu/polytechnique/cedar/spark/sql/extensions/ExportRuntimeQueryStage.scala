@@ -3,7 +3,8 @@ import edu.polytechnique.cedar.spark.collector.UdaoCollector
 import edu.polytechnique.cedar.spark.sql.component.{
   F,
   QSMetrics,
-  RunningSnapshot
+  RunningSnapshot,
+  RuntimeOptMeasureUnit
 }
 import edu.polytechnique.cedar.spark.udao.UdaoClient
 import org.apache.spark.sql.SparkSession
@@ -96,6 +97,11 @@ case class ExportRuntimeQueryStage(
 
     val snapshot = rc.snapshotCollector.snapshot()
     val qsMetrics = F.exportQSMetrics(plan, observedLogicalQS.toSet)
+    var runtimeOptMeasureUnit: RuntimeOptMeasureUnit =
+      RuntimeOptMeasureUnit(
+        endToEndDuration = 0,
+        returnMeasure = Map[String, Float]()
+      )
 
     if (udaoClient.isDefined) {
       val msg = encodeMessage(qsMetrics, snapshot)
@@ -104,7 +110,11 @@ case class ExportRuntimeQueryStage(
       print(
         s" >>> \n, got: $response, took: ${dt.toMillis} ms\n <<<"
       )
-      F.decodeMessageAndSetconf(response, spark)
+      val measure = F.decodeMessageAndSetconf(response, spark)
+      runtimeOptMeasureUnit = RuntimeOptMeasureUnit(
+        endToEndDuration = dt.toMillis,
+        returnMeasure = measure
+      )
     }
 
     // export the query stage
@@ -113,6 +123,7 @@ case class ExportRuntimeQueryStage(
         plan,
         qsMetrics = qsMetrics,
         snapshot = snapshot,
+        runtimeOptMeasureUnit = runtimeOptMeasureUnit,
         runtimeKnobsDict = F.getRuntimeConfiguration(spark)
       )
 

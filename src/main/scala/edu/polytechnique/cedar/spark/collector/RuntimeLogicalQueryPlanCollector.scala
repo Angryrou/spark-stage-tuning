@@ -5,7 +5,8 @@ import edu.polytechnique.cedar.spark.sql.component.{
   F,
   IOBytesUnit,
   LQPUnit,
-  RunningSnapshot
+  RunningSnapshot,
+  RuntimeOptMeasureUnit
 }
 import org.json4s.JsonAST
 import org.json4s.JsonDSL._
@@ -20,12 +21,14 @@ class RuntimeLogicalQueryPlanCollector {
   private val snapshotMap = new TrieMap[Int, RunningSnapshot]()
   private val thetaRMap = new TrieMap[Int, Map[String, Array[KnobKV]]]()
   private val finishedStageIdsMap = new TrieMap[Int, Set[Int]]()
+  private val runtimeOptMeasureMap = new TrieMap[Int, RuntimeOptMeasureUnit]
   def getLqpId: Int = lqpId.get()
 
   def exportRuntimeLogicalPlanBeforeOptimization(
       lqpUnit: LQPUnit,
       startTimeInMs: Long,
       snapshot: RunningSnapshot,
+      runtimeOptMeasureUnit: RuntimeOptMeasureUnit,
       runtimeKnobsDict: Map[String, Array[KnobKV]],
       finishedStageIds: Set[Int]
   ): Int = {
@@ -33,6 +36,7 @@ class RuntimeLogicalQueryPlanCollector {
     lqpUnitMap += (curId -> lqpUnit)
     startTimeInMsMap += (curId -> startTimeInMs)
     snapshotMap += (curId -> snapshot)
+    runtimeOptMeasureMap += (curId -> runtimeOptMeasureUnit)
     thetaRMap += (curId -> runtimeKnobsDict)
     finishedStageIdsMap += (curId -> finishedStageIds)
     curId
@@ -52,12 +56,14 @@ class RuntimeLogicalQueryPlanCollector {
           ("StartTimeInMs" -> startTimeInMsMap(x._1)) ~
           ("RuntimeConfiguration" -> thetaRMap(x._1)
             .map(y => (y._1, y._2.toSeq))) ~
-          ("Objectives" -> (
-            ("DurationInMs" -> (sqlEndTimeInMs - startTimeInMsMap(x._1))) ~
-              ("IOBytes" -> F
-                .aggregateIOBytes(remainingStageIds.toSeq, stageIOBytesDict)
-                .json)
-          ))
+          ("RuntimeOptSolvingMeasure" -> runtimeOptMeasureMap(x._1).toJson) ~ (
+            "Objectives" -> (
+              ("DurationInMs" -> (sqlEndTimeInMs - startTimeInMsMap(x._1))) ~
+                ("IOBytes" -> F
+                  .aggregateIOBytes(remainingStageIds.toSeq, stageIOBytesDict)
+                  .json)
+            )
+          )
       )
     }.toMap
 }

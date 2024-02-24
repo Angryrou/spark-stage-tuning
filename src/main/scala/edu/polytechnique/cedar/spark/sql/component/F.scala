@@ -22,7 +22,7 @@ import org.apache.spark.sql.execution.{
   UnaryExecNode,
   UnionExec
 }
-import org.json4s.{DefaultFormats, JValue}
+import org.json4s.{DefaultFormats, JString, JValue}
 import org.json4s.jackson.JsonMethods.parse
 
 import scala.collection.mutable
@@ -440,13 +440,16 @@ object F {
   }
 
   implicit val formats: DefaultFormats.type = DefaultFormats
-  def decodeMessageAndSetconf(message: String, spark: SparkSession): Unit = {
+  def decodeMessageAndSetconf(message: String, spark: SparkSession): Map[String, Float] = {
     val json: JValue = parse(message)
-    val confKV = json.extract[Map[String, String]]
+    val confKV = (json \ "Configuration").extract[Map[String, String]]
+    val measurement = (json \ "Measure").extract[Map[String, Float]]
+
     println("start setting updated runtime parameters")
     for ((k, v) <- confKV) {
       spark.conf.set(k, v)
     }
+    measurement
   }
 
 }

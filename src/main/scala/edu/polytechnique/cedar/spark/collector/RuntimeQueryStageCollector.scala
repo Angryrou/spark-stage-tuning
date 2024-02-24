@@ -18,6 +18,7 @@ class RuntimeQueryStageCollector(verbose: Boolean = false) {
 
   private val qsIndexMap = new TrieMap[(Int, Int), QSIndex]()
   private var qsMap: Option[Map[Int, QSUnit]] = None
+  private val runtimeOptMeasureMap = new TrieMap[Int, RuntimeOptMeasureUnit]
 
   def getQsOptId: Int = qsOptId.get()
 
@@ -25,11 +26,13 @@ class RuntimeQueryStageCollector(verbose: Boolean = false) {
       plan: SparkPlan,
       qsMetrics: QSMetrics,
       snapshot: RunningSnapshot,
+      runtimeOptMeasureUnit: RuntimeOptMeasureUnit,
       runtimeKnobsDict: Map[String, Array[KnobKV]]
   ): Int = {
     val curId = qsOptId.getAndIncrement()
     qsOptIdMap += (curId -> qsMetrics)
     snapshotMap += (curId -> snapshot)
+    runtimeOptMeasureMap += (curId -> runtimeOptMeasureUnit)
     thetaRMap += (curId -> runtimeKnobsDict)
     tableMap += (curId -> F.getLeafTables(plan))
     curId
@@ -149,6 +152,7 @@ class RuntimeQueryStageCollector(verbose: Boolean = false) {
         totalTasksDurationInMs =
           stageGroupResultsMap(sgId).totalTasksDurationInMs,
         snapshot = snapshotMap(tmpOptId),
+        runtimeOptSolvingMeasure = runtimeOptMeasureMap(tmpOptId),
         thetaR = thetaRMap(tmpOptId),
         relevantStages = stageGroupResultsMap(sgId).relevantStages,
         table = tableMap(tmpOptId)

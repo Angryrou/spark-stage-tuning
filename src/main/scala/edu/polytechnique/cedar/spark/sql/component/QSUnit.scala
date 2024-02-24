@@ -12,6 +12,7 @@ case class QSUnit(
     totalTasksDurationInMs: Long,
     ioBytes: IOBytesUnit,
     snapshot: RunningSnapshot,
+    runtimeOptSolvingMeasure: RuntimeOptMeasureUnit,
     thetaR: Map[String, Array[KnobKV]],
     relevantStages: Seq[Int],
     table: String
@@ -21,6 +22,7 @@ case class QSUnit(
     ("RunningQueryStageSnapshot" -> snapshot.toJson) ~
     ("QueryStageOptimizationId" -> qsOptId) ~
     ("RuntimeConfiguration" -> thetaR.map(x => (x._1, x._2.toList))) ~
+    ("RuntimeOptSolvingMeasure" -> runtimeOptSolvingMeasure.toJson) ~
     ("RelevantQueryStageIds" -> relevantStages.toList) ~
     ("Objectives" -> ("DurationInMs" -> durationInMs) ~
       ("TotalTasksDurationInMs" -> totalTasksDurationInMs) ~

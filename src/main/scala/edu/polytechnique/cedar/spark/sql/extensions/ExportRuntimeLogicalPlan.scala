@@ -1,6 +1,11 @@
 package edu.polytechnique.cedar.spark.sql.extensions
 import edu.polytechnique.cedar.spark.collector.UdaoCollector
-import edu.polytechnique.cedar.spark.sql.component.{F, LQPUnit, RunningSnapshot}
+import edu.polytechnique.cedar.spark.sql.component.{
+  F,
+  LQPUnit,
+  RunningSnapshot,
+  RuntimeOptMeasureUnit
+}
 import edu.polytechnique.cedar.spark.udao.UdaoClient
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -42,6 +47,11 @@ case class ExportRuntimeLogicalPlan(
     if (executionId.get == 1) {
       val lqpUnit = F.exportLQP(plan)
       val snapshot = rc.snapshotCollector.snapshot()
+      var runtimeOptMeasureUnit: RuntimeOptMeasureUnit =
+        RuntimeOptMeasureUnit(
+          endToEndDuration = 0,
+          returnMeasure = Map[String, Float]()
+        )
       if (udaoClient.isDefined) {
         val msg = encodeMessage(lqpUnit, snapshot)
         println("!! message prepared and sent for runtime LQP")
@@ -49,12 +59,17 @@ case class ExportRuntimeLogicalPlan(
         print(
           s" >>> \n, got: $response, took: ${dt.toMillis} ms\n <<<"
         )
-        F.decodeMessageAndSetconf(response, spark)
+        val measure = F.decodeMessageAndSetconf(response, spark)
+        runtimeOptMeasureUnit = RuntimeOptMeasureUnit(
+          endToEndDuration = dt.toMillis,
+          returnMeasure = measure
+        )
       }
       val lqpId = rc.exportRuntimeLogicalPlanBeforeOptimization(
         lqpUnit = lqpUnit,
         startTimeInMs = F.getTimeInMs,
         snapshot = snapshot,
+        runtimeOptMeasureUnit = runtimeOptMeasureUnit,
         runtimeKnobsDict = F.getRuntimeConfiguration(spark)
       )
       if (debug) {

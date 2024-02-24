@@ -3,7 +3,8 @@ import edu.polytechnique.cedar.spark.sql.component.F.KnobKV
 import edu.polytechnique.cedar.spark.sql.component.{
   LQPUnit,
   QSMetrics,
-  RunningSnapshot
+  RunningSnapshot,
+  RuntimeOptMeasureUnit
 }
 import edu.polytechnique.cedar.spark.udao.UdaoClient
 import org.apache.spark.scheduler.{
@@ -83,12 +84,14 @@ class UdaoCollector(verbose: Boolean = true, tid: String = "") {
       lqpUnit: LQPUnit,
       startTimeInMs: Long,
       snapshot: RunningSnapshot,
+      runtimeOptMeasureUnit: RuntimeOptMeasureUnit,
       runtimeKnobsDict: Map[String, Array[KnobKV]]
   ): Int = {
     lqpCollector.exportRuntimeLogicalPlanBeforeOptimization(
       lqpUnit,
       startTimeInMs,
       snapshot,
+      runtimeOptMeasureUnit,
       runtimeKnobsDict,
       finishedStageIds = sgCollector.getFinishedStageIds
     )
@@ -98,12 +101,14 @@ class UdaoCollector(verbose: Boolean = true, tid: String = "") {
       plan: SparkPlan,
       qsMetrics: QSMetrics,
       snapshot: RunningSnapshot,
+      runtimeOptMeasureUnit: RuntimeOptMeasureUnit,
       runtimeKnobsDict: Map[String, Array[KnobKV]]
   ): Int = {
     qsCollector.exportRuntimeQueryStageBeforeOptimization(
       plan,
       qsMetrics,
       snapshot,
+      runtimeOptMeasureUnit,
       runtimeKnobsDict
     )
   }
