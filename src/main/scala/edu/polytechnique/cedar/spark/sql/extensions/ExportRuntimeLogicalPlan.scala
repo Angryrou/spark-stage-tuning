@@ -52,7 +52,13 @@ case class ExportRuntimeLogicalPlan(
           endToEndDuration = 0,
           returnMeasure = Map[String, Float]()
         )
-      if (udaoClient.isDefined) {
+      if (
+        udaoClient.isDefined &&
+        lqpUnit.logicalPlanMetrics.operators
+          .map(x => x._2.name)
+          .toSeq
+          .contains("Join")
+      ) {
         val msg = encodeMessage(lqpUnit, snapshot)
         println("!! message prepared and sent for runtime LQP")
         val (response, dt) = udaoClient.get.getUpdateTheta(msg)

@@ -51,6 +51,21 @@ case class ExportRuntimeQueryStage(
     compact(render(jObject))
   }
 
+  def parseMemoryString(memoryString: String): Long = {
+    val unit = memoryString.takeRight(2).toLowerCase match {
+      case "kb" => 1024L
+      case "mb" => 1024L * 1024
+      case "gb" => 1024L * 1024 * 1024
+      case "tb" => 1024L * 1024 * 1024 * 1024
+      case _ =>
+        1L // Default to bytes if no unit is found or if it ends with "b"
+    }
+
+    val numericPart = memoryString.filter(_.isDigit)
+
+    numericPart.toLong * unit
+  }
+
   override def apply(plan: SparkPlan): SparkPlan = {
 
     val executionId = F.getExecutionId(spark)
@@ -103,7 +118,21 @@ case class ExportRuntimeQueryStage(
         returnMeasure = Map[String, Float]()
       )
 
-    if (udaoClient.isDefined) {
+    if (
+      udaoClient.isDefined && // enable runtime optimizer
+      !qsMetrics.logicalPlanMetrics.operators // skip the scan-based QSs
+        .map(x => x._2.name)
+        .toSeq
+        .contains("LogicalRelation") &&
+      qsMetrics.logicalPlanMetrics.operators.size <= 1 && // skip single operator QS
+      qsMetrics.logicalPlanMetrics.operators // skip the QSs without real statistics
+        .map(x => x._2.plan.stats.isRuntime)
+        .exists(b => b) &&
+      qsMetrics.inputMetaInfo.inputSizeInBytes > // skip QSs with small sizes
+        parseMemoryString(
+          spark.conf.get("spark.sql.adaptive.advisoryPartitionSizeInBytes")
+        ).max(64 * 1024 * 1024)
+    ) {
       val msg = encodeMessage(qsMetrics, snapshot)
       println("!! message prepared and sent for runtime QS")
       val (response, dt) = udaoClient.get.getUpdateTheta(msg)
