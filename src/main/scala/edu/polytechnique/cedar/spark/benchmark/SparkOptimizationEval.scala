@@ -1,19 +1,10 @@
 package edu.polytechnique.cedar.spark.benchmark
 
 import edu.polytechnique.cedar.spark.benchmark.config.RunTemplateQueryConfig
-import edu.polytechnique.cedar.spark.collector.UdaoCollector
-import edu.polytechnique.cedar.spark.listeners.UDAOSparkListener
-import edu.polytechnique.cedar.spark.sql.extensions.{
-  ExportRuntimeLogicalPlan,
-  ExportRuntimeQueryStage
-}
-import edu.polytechnique.cedar.spark.udao.UdaoClient
 import org.apache.spark.sql.SparkSession
 
-import java.io.PrintWriter
-import java.io.File
 
-object RunTemplateQueryForRuntime {
+object SparkOptimizationEval {
 
   def main(args: Array[String]): Unit = {
     val parser =
@@ -74,11 +65,6 @@ object RunTemplateQueryForRuntime {
     assert(config.benchmarkName == "tpch" || config.benchmarkName == "tpcds")
     val tid: String = config.templateName
     val qid: String = config.queryName
-    val collector = new UdaoCollector(config.verbose, tid)
-    val udaoClient: Option[UdaoClient] =
-      if (config.enableRuntimeSolver)
-        Some(new UdaoClient(config.runtimeSolverHost, config.runtimeSolverPort))
-      else None
     val debug = config.localDebug
     val spark = if (debug) {
       SparkSession
@@ -105,32 +91,14 @@ object RunTemplateQueryForRuntime {
         )
         .config("spark.kryoserializer.buffer.max", "512m")
         .config("spark.yarn.historyServer.address", "http://localhost:18088")
-        .withExtensions { extensions =>
-          extensions.injectRuntimeOptimizerPrefixRule(
-            ExportRuntimeLogicalPlan(_, collector, debug, udaoClient)
-          )
-          extensions.injectQueryStageOptimizerPrefixRule(
-            ExportRuntimeQueryStage(_, collector, debug, udaoClient)
-          )
-        }
         .enableHiveSupport()
         .getOrCreate()
     } else {
       SparkSession
         .builder()
-        .withExtensions { extensions =>
-          extensions.injectRuntimeOptimizerPrefixRule(
-            ExportRuntimeLogicalPlan(_, collector, debug, udaoClient)
-          )
-          extensions.injectQueryStageOptimizerPrefixRule(
-            ExportRuntimeQueryStage(_, collector, debug, udaoClient)
-          )
-        }
         .enableHiveSupport()
         .getOrCreate()
     }
-
-    spark.sparkContext.addSparkListener(UDAOSparkListener(collector))
 
     val databaseName =
       if (config.databaseName == null)
@@ -146,22 +114,13 @@ object RunTemplateQueryForRuntime {
       try source.mkString
       finally source.close()
 
-    println(spark.sparkContext.applicationId)
-    println(spark.sparkContext.getConf.get("spark.yarn.historyServer.address"))
-
-    println(s"run ${queryLocationHeader}/${tid}/${tid}-${qid}.sql")
-    collector.onCompile(spark, queryContent)
-    spark.sql(queryContent).collect()
-    spark.close()
-
-    val xFile = new File(config.extractedPath)
-    xFile.mkdirs()
-
-    val writer = new PrintWriter(
-      s"${config.extractedPath}/${spark.sparkContext.appName}_${spark.sparkContext.applicationId}.json"
-    )
-    val jsonString = collector.dump2String
-    writer.write(jsonString)
-    writer.close()
+    // Start timing
+    val startTime = System.nanoTime()
+    // Execute the explain command to simulate optimization
+    spark.sql(queryContent).explain(true)
+    // Stop timing
+    val endTime = System.nanoTime()
+    val durationSeconds = (endTime - startTime) / 1e9d // Convert to seconds
+    println(s"$tid: ${durationSeconds}s")
   }
 }
