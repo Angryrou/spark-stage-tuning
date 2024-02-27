@@ -57,7 +57,12 @@ case class ExportRuntimeLogicalPlan(
         lqpUnit.logicalPlanMetrics.operators
           .map(x => x._2.name)
           .toSeq
-          .contains("Join")
+          .contains("Join") && // skip if no joins in side
+        !lqpUnit.logicalPlanMetrics.operators
+          .map(x =>
+            x._2.name.equals("LogicalQueryStage") && !x._2.plan.stats.isRuntime
+          )
+          .exists(b => b) // skip if LQP is not ready
       ) {
         val msg = encodeMessage(lqpUnit, snapshot)
         println("!! message prepared and sent for runtime LQP")
