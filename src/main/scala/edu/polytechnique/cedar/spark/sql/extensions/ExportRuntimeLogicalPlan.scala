@@ -57,32 +57,27 @@ case class ExportRuntimeLogicalPlan(
         lqpUnit.logicalPlanMetrics.operators
           .map(x => x._2.name)
           .toSeq
-          .contains("Join")
+          .contains("Join") &&
+        !lqpUnit.logicalPlanMetrics.operators
+          .map(x =>
+            x._2.name
+              .equals("LogicalQueryStage") && !x._2.plan.stats.isRuntime
+          )
+          .exists(b => b) // skip if LQP is not ready
       ) {
-        if // skip if no joins in side
-        (
-          (rc.lqpCollector.getLqpId == 1) || (
-            !lqpUnit.logicalPlanMetrics.operators
-              .map(x =>
-                x._2.name
-                  .equals("LogicalQueryStage") && !x._2.plan.stats.isRuntime
-              )
-              .exists(b => b) // skip if LQP is not ready
-          )
-        ) {
-          val msg = encodeMessage(lqpUnit, snapshot)
-          println("!! message prepared and sent for runtime LQP")
-          val (response, dt) = udaoClient.get.getUpdateTheta(msg)
-          print(
-            s" >>> \n, got: $response, took: ${dt.toMillis} ms\n <<<"
-          )
-          val measure = F.decodeMessageAndSetconf(response, spark)
-          runtimeOptMeasureUnit = RuntimeOptMeasureUnit(
-            endToEndDuration = dt.toMillis,
-            returnMeasure = measure
-          )
-        }
+        val msg = encodeMessage(lqpUnit, snapshot)
+        println("!! message prepared and sent for runtime LQP")
+        val (response, dt) = udaoClient.get.getUpdateTheta(msg)
+        print(
+          s" >>> \n, got: $response, took: ${dt.toMillis} ms\n <<<"
+        )
+        val measure = F.decodeMessageAndSetconf(response, spark)
+        runtimeOptMeasureUnit = RuntimeOptMeasureUnit(
+          endToEndDuration = dt.toMillis,
+          returnMeasure = measure
+        )
       }
+
       val lqpId = rc.exportRuntimeLogicalPlanBeforeOptimization(
         lqpUnit = lqpUnit,
         startTimeInMs = F.getTimeInMs,
