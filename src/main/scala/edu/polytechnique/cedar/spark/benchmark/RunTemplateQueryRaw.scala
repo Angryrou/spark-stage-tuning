@@ -117,7 +117,7 @@ object RunTemplateQueryRaw {
     // Start timing
     val startTime = System.nanoTime()
     // Execute the query
-    spark.sql(queryContent)
+    spark.sql(queryContent).collect()
     // Stop timing
     val endTime = System.nanoTime()
     val durationSeconds = (endTime - startTime) / 1e9d // Convert to seconds
