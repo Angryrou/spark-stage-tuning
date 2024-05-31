@@ -7,25 +7,23 @@ theta_p="64MB 0.2 0MB 10MB 200 256MB 5.0 128MB 4MB"
 theta_s="0.2 1024KB"
 name="unnamed"
 xpath="./outs"
-updateLqpId=""
 verbose_mode=false
 
 # Define usage function
 usage() {
-  echo "Usage: $0 -q <query> -c <theta_c> -p <theta_p> -s <theta_s> -n <name> -x <xpath> -i <updateLqpId>[-v]"
+  echo "Usage: $0 -q <query> -c <theta_c> -p <theta_p> -s <theta_s> -n <name> -x <xpath> [-v]"
   echo "  -q <query>: Specify template id (tid) and query variant id (qid)."
   echo "  -c <theta_c>: Specify context parameters from k1 to k8"
   echo "  -p <theta_p>: Specify logical query plan (LQP) parameters from s1 to s7"
   echo "  -s <theta_s>: Specify query stage (QS) parameters from s8 to s9"
   echo "  -n <name>: Specify the name of spark app"
   echo "  -x <xpath>: Specify the path for the extracted traces"
-  echo "  -i <updateLqpId>: Specify which AQE entry to update the runtime configuration "
   echo "  -v: Enable verbose mode."
   exit 1
 }
 
 # Parse command line options with getopts
-while getopts "q:c:p:s:n:x:i:v" opt; do
+while getopts "q:c:p:s:n:x:v" opt; do
   case "$opt" in
     q) query="$OPTARG";;
     c) theta_c="$OPTARG";;
@@ -33,7 +31,6 @@ while getopts "q:c:p:s:n:x:i:v" opt; do
     s) theta_s="$OPTARG";;
     n) name="$OPTARG";;
     x) xpath="$OPTARG";;
-    i) updateLqpId="$OPTARG";;
     v) verbose_mode=true;;
     \?) usage;;
   esac
@@ -42,7 +39,7 @@ done
 read tid qid <<< "$query"
 qsign=q${tid}-{qid}
 read k1 k2 k3 k4 k5 k6 k7 k8 <<< "$theta_c"
-read s1 s2 s3 s4 s5 s6 s7 s8 s9 <<< "$theta_p"
+read s1 s2 s3 s4 s5 s6 s7 s8 s9<<< "$theta_p"
 read s10 s11 <<< "$theta_s"
 
 spath=/opt/hex_users/$USER/chenghao/spark-stage-tuning
@@ -51,7 +48,7 @@ lpath=/opt/hex_users/$USER/chenghao/spark-stage-tuning/src/main/resources/log4j2
 qpath=/opt/hex_users/$USER/chenghao/UDAO2022
 
 ~/spark/bin/spark-submit \
---class edu.polytechnique.cedar.spark.benchmark.RunTemplateQueryForRuntimeTaskB \
+--class edu.polytechnique.cedar.spark.benchmark.RunTemplateQueryForRuntime \
 --name ${name} \
 --master yarn \
 --deploy-mode client \
@@ -94,4 +91,4 @@ qpath=/opt/hex_users/$USER/chenghao/UDAO2022
 --files "$lpath" \
 --jars ~/spark/examples/jars/scopt_2.12-3.7.1.jar \
 $spath/target/scala-2.12/spark-stage-tuning_2.12-1.0-SNAPSHOT.jar \
--b tpch -t ${tid} -q ${qid} -s 100 -x ${xpath} -l ${qpath}/resources/tpch-kit/spark-sqls -i ${updateLqpId}
+-b tpch -t ${tid} -q ${qid} -s 100 -x ${xpath} -l ${qpath}/resources/tpch-kit/spark-sqls #> ${loc}/${name}_x${trial}.log 2>&1

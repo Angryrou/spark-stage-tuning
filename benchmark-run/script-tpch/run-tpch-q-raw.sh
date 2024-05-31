@@ -2,9 +2,9 @@
 
 # Initialize variables with default values
 query="9 1"
-theta_c="16g 5 4 40 48m 200 true 0.6"
-theta_p="64MB 0.2 0b 10MB 200 256MB 5.0 128MB 4MB"
-theta_s="0.2 1MB"
+theta_c="1 1g 16 40 48m 200 true 0.6"
+theta_p="64MB 0.2 0MB 10MB 200 256MB 5.0 128MB 4MB"
+theta_s="0.2 1024KB"
 name="unnamed"
 xpath="./outs"
 verbose_mode=false
@@ -48,14 +48,14 @@ lpath=/opt/hex_users/$USER/chenghao/spark-stage-tuning/src/main/resources/log4j2
 qpath=/opt/hex_users/$USER/chenghao/UDAO2022
 
 ~/spark/bin/spark-submit \
---class edu.polytechnique.cedar.spark.benchmark.RunTemplateQueryForRuntime \
+--class edu.polytechnique.cedar.spark.benchmark.RunTemplateQueryRaw \
 --name ${name} \
 --master yarn \
 --deploy-mode client \
 --conf spark.executorEnv.JAVA_HOME=${jpath} \
 --conf spark.yarn.appMasterEnv.JAVA_HOME=${jpath} \
---conf spark.executor.memory=${k1} \
---conf spark.executor.cores=${k2} \
+--conf spark.executor.cores=${k1} \
+--conf spark.executor.memory=${k2} \
 --conf spark.executor.instances=${k3} \
 --conf spark.default.parallelism=${k4} \
 --conf spark.reducer.maxSizeInFlight=${k5} \
