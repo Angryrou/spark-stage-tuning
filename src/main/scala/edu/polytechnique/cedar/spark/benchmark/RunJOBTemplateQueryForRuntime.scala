@@ -57,7 +57,7 @@ object RunJOBTemplateQueryForRuntime {
   }
 
   def run(config: RunJOBTemplateQueryConfig): Unit = {
-    assert(config.benchmarkName == "job-train" || config.benchmarkName == "job-synthetic" || config.benchmarkName == "job-light")
+    assert(config.benchmarkName.startsWith("job-"))
     val tid: String = config.templateName
     val collector = new UdaoCollector(config.verbose, tid)
     val udaoClient: Option[UdaoClient] =
