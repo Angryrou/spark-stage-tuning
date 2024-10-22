@@ -1,4 +1,5 @@
 package edu.polytechnique.cedar.spark.collector
+
 import edu.polytechnique.cedar.spark.sql.component.F.KnobKV
 import edu.polytechnique.cedar.spark.sql.component.{
   LQPUnit,
@@ -81,12 +82,12 @@ class UdaoCollector(verbose: Boolean = true, tid: String = "") {
   }
 
   def exportRuntimeLogicalPlanBeforeOptimization(
-      lqpUnit: LQPUnit,
-      startTimeInMs: Long,
-      snapshot: RunningSnapshot,
-      runtimeOptMeasureUnit: RuntimeOptMeasureUnit,
-      runtimeKnobsDict: Map[String, Array[KnobKV]]
-  ): Int = {
+                                                  lqpUnit: LQPUnit,
+                                                  startTimeInMs: Long,
+                                                  snapshot: RunningSnapshot,
+                                                  runtimeOptMeasureUnit: RuntimeOptMeasureUnit,
+                                                  runtimeKnobsDict: Map[String, Array[KnobKV]]
+                                                ): Int = {
     lqpCollector.exportRuntimeLogicalPlanBeforeOptimization(
       lqpUnit,
       startTimeInMs,
@@ -98,12 +99,12 @@ class UdaoCollector(verbose: Boolean = true, tid: String = "") {
   }
 
   def exportRuntimeQueryStageBeforeOptimization(
-      plan: SparkPlan,
-      qsMetrics: QSMetrics,
-      snapshot: RunningSnapshot,
-      runtimeOptMeasureUnit: RuntimeOptMeasureUnit,
-      runtimeKnobsDict: Map[String, Array[KnobKV]]
-  ): Int = {
+                                                 plan: SparkPlan,
+                                                 qsMetrics: QSMetrics,
+                                                 snapshot: RunningSnapshot,
+                                                 runtimeOptMeasureUnit: RuntimeOptMeasureUnit,
+                                                 runtimeKnobsDict: Map[String, Array[KnobKV]]
+                                               ): Int = {
     qsCollector.exportRuntimeQueryStageBeforeOptimization(
       plan,
       qsMetrics,
@@ -126,30 +127,36 @@ class UdaoCollector(verbose: Boolean = true, tid: String = "") {
       lqpCollector.exportMap(sqlEndTimeInMs, sgCollector.getStageIOBytesDict)
     val sgMap = sgCollector.getStageGroupMap
     val sgResultsMap = sgCollector.aggregateResults
-    val qsMap = qsCollector.getQueryStageMap(sgMap, sgResultsMap)
-
-    qsMap
-      .map(x => (x._1, x._2.qsOptId, x._2.relevantStages, x._2.table))
-      .toSeq
-      .sortBy(_._1)
-      .foreach(x =>
-        println(
-          s"QueryStageId: ${x._1} \t OptimizationOrder: ${x._2} \t RelevantStages: ${x._3} \t table: ${x._4}"
-        )
-      )
 
     val json: JsonAST.JObject = {
-      ("CompileTimeLQP" -> compileTimeCollector.exposeJson) ~
-        ("RuntimeLQPs" -> lqpMap) ~
-        ("RuntimeQSs" -> qsMap.map(x => (x._1.toString, x._2.json))) ~
+      val baseJson1 = {
+        ("CompileTimeLQP" -> compileTimeCollector.exposeJson) ~
+          ("RuntimeLQPs" -> lqpMap)
+      }
+      val baseJson2 = {
         ("SQLStartTimeInMs" -> sqlStartTimeInMs) ~
-        ("SQLEndTimeInMs" -> sqlEndTimeInMs) ~
-        ("Objectives" -> (
-          ("DurationInMs" -> (sqlEndTimeInMs - sqlStartTimeInMs)) ~
-            ("IOBytes" -> sgCollector.aggregateAll().json)
-        ))
+          ("SQLEndTimeInMs" -> sqlEndTimeInMs) ~
+          ("Objectives" -> (
+            ("DurationInMs" -> (sqlEndTimeInMs - sqlStartTimeInMs)) ~
+              ("IOBytes" -> sgCollector.aggregateAll().json)
+            ))
+      }
 
+      if (sgMap.size == sgResultsMap.size) {
+        val qsMap = qsCollector.getQueryStageMap(sgMap, sgResultsMap)
+        qsMap
+          .map(x => (x._1, x._2.qsOptId, x._2.relevantStages, x._2.table))
+          .toSeq
+          .sortBy(_._1)
+          .foreach { x =>
+            println(s"QueryStageId: ${x._1} \t OptimizationOrder: ${x._2} \t RelevantStages: ${x._3} \t table: ${x._4}")
+          }
+        baseJson1 ~ ("RuntimeQSs" -> qsMap.map(x => (x._1.toString, x._2.json))) ~ baseJson2
+      } else {
+        baseJson1 ~ baseJson2
+      }
     }
+
     pretty(render(json))
   }
 
