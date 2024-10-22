@@ -142,7 +142,7 @@ class UdaoCollector(verbose: Boolean = true, tid: String = "") {
             ))
       }
 
-      if (sgMap.size == sgResultsMap.size) {
+      if (sgMap.size == qsCollector.getQsIndexMapSize) {
         val qsMap = qsCollector.getQueryStageMap(sgMap, sgResultsMap)
         qsMap
           .map(x => (x._1, x._2.qsOptId, x._2.relevantStages, x._2.table))

@@ -132,6 +132,8 @@ class RuntimeQueryStageCollector(verbose: Boolean = false) {
     qsId2sgIdMapping.toMap
   }
 
+  def getQsIndexMapSize: Int = qsIndexMap.size
+
   def getQueryStageMap(
       stageGroupMap: TrieMap[Int, SGUnit],
       stageGroupResultsMap: TrieMap[Int, SGResults]
