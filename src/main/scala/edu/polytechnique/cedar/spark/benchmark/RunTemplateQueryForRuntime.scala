@@ -71,7 +71,7 @@ object RunTemplateQueryForRuntime {
   }
 
   def run(config: RunTemplateQueryConfig): Unit = {
-    assert(config.benchmarkName == "tpch" || config.benchmarkName == "tpcds")
+    assert(config.benchmarkName == "tpch" || config.benchmarkName.startsWith("tpcds"))
     val tid: String = config.templateName
     val qid: String = config.queryName
     val collector = new UdaoCollector(config.verbose, tid)
