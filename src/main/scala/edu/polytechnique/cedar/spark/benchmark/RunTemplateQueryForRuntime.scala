@@ -134,7 +134,7 @@ object RunTemplateQueryForRuntime {
 
     val databaseName =
       if (config.databaseName == null)
-        s"${config.benchmarkName}_${config.scaleFactor}"
+        s"${config.benchmarkName.split("-")(0)}_${config.scaleFactor}"
       else config.databaseName
     val queryLocationHeader: String = config.queryLocationHeader
 
