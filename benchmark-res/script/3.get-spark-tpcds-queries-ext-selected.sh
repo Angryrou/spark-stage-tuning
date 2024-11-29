@@ -5,7 +5,7 @@ KITPATH=$1   # $PWD/resources/tpcds-kit
 QPT=$2       # query per template
 SF=${3:-100} # SF
 
-OUTPATH=${KITPATH}/spark-sqls-ext
+OUTPATH=${KITPATH}/spark-sqls-ext-selected
 if [ -d "$KITPATH" ]; then
   ### Take action if $DIR exists ###
   echo "Generating 1000 * ${QPT} = $((1000 * QPT)) Spark SQLs in ${OUTPATH}"
