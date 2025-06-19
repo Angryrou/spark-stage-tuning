@@ -117,6 +117,14 @@ class UdaoCollector(verbose: Boolean = true, tid: String = "") {
   def onQueryStageSubmitted(e: SparkListenerOnQueryStageSubmitted): Unit =
     qsCollector.onQueryStageSubmitted(e)
 
+
+  def dumpLqp2String: String = {
+    val json: JsonAST.JObject = {
+      "CompileTimeLQP" -> compileTimeCollector.exposeJson
+    }
+    pretty(render(json))
+  }
+
   def dump2String: String = {
     assert(
       sqlStartTimeInMs > 0 && sqlEndTimeInMs > 0,
